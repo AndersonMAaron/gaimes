@@ -1,0 +1,1295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>APEX: Defenders of Outcomes</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a1a;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    overflow: hidden;
+    font-family: 'Courier New', monospace;
+  }
+  #gameContainer {
+    position: relative;
+    border: 2px solid #1a1a3a;
+    box-shadow: 0 0 40px rgba(0, 100, 255, 0.15);
+  }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<div id="gameContainer">
+  <canvas id="gameCanvas"></canvas>
+</div>
+<script>
+// ============================================================
+// APEX: Defenders of Outcomes
+// A hybrid space-invaders / tetris backlog game
+// ============================================================
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+const W = 800;
+const H = 900;
+canvas.width = W;
+canvas.height = H;
+
+// ---- CONSTANTS ----
+const INSANITY_ZONE_H = 50;
+const PLAYER_W = 72;
+const PLAYER_H = 72;
+const BULLET_SPEED = 10;
+const BULLET_W = 5;
+const BULLET_H = 16;
+const ENEMY_BASE_SPEED = 0.6;
+const FRAGMENT_SPEED_MIN = 0.4;
+const FRAGMENT_SPEED_MAX = 1.0;
+const BACKLOG_BLOCK_H = 22;
+const PARTICLE_COUNT = 8;
+const SHOOT_COOLDOWN = 130; // ms
+
+// ---- LASER COLORS ----
+const LASER_COLORS = [
+  { core: '#88ddff', glow: '#3399ff', trail: 'rgba(100, 180, 255, 0.3)', particle: '#88ccff' },
+  { core: '#ff88aa', glow: '#ff3366', trail: 'rgba(255, 100, 150, 0.3)', particle: '#ff6699' },
+  { core: '#88ff88', glow: '#33cc33', trail: 'rgba(100, 255, 100, 0.3)', particle: '#66ff66' },
+  { core: '#ffdd55', glow: '#ffaa00', trail: 'rgba(255, 200, 50, 0.3)', particle: '#ffcc33' },
+  { core: '#cc88ff', glow: '#9933ff', trail: 'rgba(180, 100, 255, 0.3)', particle: '#bb66ff' },
+  { core: '#ff8844', glow: '#ff5500', trail: 'rgba(255, 130, 60, 0.3)', particle: '#ff7733' },
+  { core: '#44ffff', glow: '#00cccc', trail: 'rgba(60, 255, 255, 0.3)', particle: '#33eeee' },
+];
+let laserColorIndex = 0;
+
+// ---- ENEMY TYPES ----
+// JIRA: large, tanky, 5 HP, always spawns 5 subtasks
+// Access Card: fast, frequent, 1 HP (quick kill), spawns 2 subtasks
+// Teams Ping: small, 2 HP, spawns 2-10 subtasks
+// OpsGenie Alert: small, 2 HP, spawns 2-10 subtasks
+const ENEMY_TYPES = [
+  {
+    name: 'JIRA Issue',
+    abbr: 'JIRA',
+    color: '#2684FF',
+    colorDark: '#0052CC',
+    icon: 'jira',
+    width: 90,
+    height: 52,
+    hp: 5,
+    points: 200,
+    fragMin: 5,
+    fragMax: 5,
+    spawnWeight: 2,
+    speedMul: 0.8
+  },
+  {
+    name: 'Access Card',
+    abbr: 'ACCS',
+    color: '#00C853',
+    colorDark: '#008836',
+    icon: 'access',
+    width: 52,
+    height: 30,
+    hp: 1,
+    points: 40,
+    fragMin: 2,
+    fragMax: 2,
+    spawnWeight: 5,
+    speedMul: 1.6
+  },
+  {
+    name: 'Teams Ping',
+    abbr: 'TEAMS',
+    color: '#7B83EB',
+    colorDark: '#505AC9',
+    icon: 'teams',
+    width: 48,
+    height: 28,
+    hp: 2,
+    points: 75,
+    fragMin: 2,
+    fragMax: 10,
+    spawnWeight: 3,
+    speedMul: 1.0
+  },
+  {
+    name: 'OpsGenie Alert',
+    abbr: 'ALERT',
+    color: '#FF5630',
+    colorDark: '#BF2600',
+    icon: 'alert',
+    width: 48,
+    height: 28,
+    hp: 2,
+    points: 80,
+    fragMin: 2,
+    fragMax: 10,
+    spawnWeight: 3,
+    speedMul: 1.0
+  }
+];
+
+// Total spawn weight for weighted random
+const TOTAL_SPAWN_WEIGHT = ENEMY_TYPES.reduce((s, t) => s + t.spawnWeight, 0);
+
+// ---- FRAGMENT WORK ITEM TYPES ----
+const FRAGMENT_TYPES = [
+  { name: 'Sub-task', abbr: 'SUB', color: '#36B37E', width: 36, height: 22 },
+  { name: 'Bug Report', abbr: 'BUG', color: '#FF5630', width: 38, height: 22 },
+  { name: 'Code Review', abbr: 'CR', color: '#FFAB00', width: 40, height: 22 },
+  { name: 'Meeting Inv.', abbr: 'MTG', color: '#6554C0', width: 38, height: 22 },
+  { name: 'Slack Thread', abbr: 'SLCK', color: '#E01E5A', width: 38, height: 22 },
+  { name: 'PR Comment', abbr: 'PR', color: '#00B8D9', width: 36, height: 22 },
+  { name: 'Doc Update', abbr: 'DOC', color: '#8993A4', width: 38, height: 22 },
+  { name: 'Sprint Goal', abbr: 'SPRT', color: '#FF8B00', width: 40, height: 22 },
+  { name: 'Retro Action', abbr: 'RETR', color: '#57D9A3', width: 40, height: 22 },
+  { name: 'Dependency', abbr: 'DEP', color: '#C1C7D0', width: 38, height: 22 },
+];
+
+// ---- PRE-RENDER LOGO TO OFFSCREEN CANVAS ----
+const logoCanvas = document.createElement('canvas');
+const logoSize = 64;
+logoCanvas.width = logoSize;
+logoCanvas.height = logoSize;
+const lctx = logoCanvas.getContext('2d');
+
+function renderLogo() {
+  const s = logoSize;
+  const cx = s / 2;
+  const cy = s / 2;
+  lctx.clearRect(0, 0, s, s);
+
+  // Diamond background
+  lctx.save();
+  lctx.translate(cx, cy);
+  lctx.rotate(Math.PI / 4);
+  const diamondSize = s * 0.36;
+
+  // Outer glow
+  lctx.shadowColor = '#00ccff';
+  lctx.shadowBlur = 10;
+
+  // Diamond shape
+  lctx.fillStyle = '#0d2a4a';
+  lctx.strokeStyle = '#00ccff';
+  lctx.lineWidth = 2;
+  const r = 4;
+  const d = diamondSize;
+  lctx.beginPath();
+  lctx.moveTo(-d + r, -d);
+  lctx.lineTo(d - r, -d);
+  lctx.quadraticCurveTo(d, -d, d, -d + r);
+  lctx.lineTo(d, d - r);
+  lctx.quadraticCurveTo(d, d, d - r, d);
+  lctx.lineTo(-d + r, d);
+  lctx.quadraticCurveTo(-d, d, -d, d - r);
+  lctx.lineTo(-d, -d + r);
+  lctx.quadraticCurveTo(-d, -d, -d + r, -d);
+  lctx.closePath();
+  lctx.fill();
+  lctx.stroke();
+
+  lctx.shadowBlur = 0;
+  lctx.restore();
+
+  // Chevron / arrow at top
+  lctx.strokeStyle = '#c0c8d0';
+  lctx.lineWidth = 3;
+  lctx.lineCap = 'round';
+  lctx.lineJoin = 'round';
+  lctx.beginPath();
+  lctx.moveTo(cx - 12, cy - 6);
+  lctx.lineTo(cx, cy - 16);
+  lctx.lineTo(cx + 12, cy - 6);
+  lctx.stroke();
+
+  // Inner smaller chevron
+  lctx.lineWidth = 2;
+  lctx.beginPath();
+  lctx.moveTo(cx - 7, cy - 4);
+  lctx.lineTo(cx, cy - 10);
+  lctx.lineTo(cx + 7, cy - 4);
+  lctx.stroke();
+
+  // "APEX" text
+  lctx.fillStyle = '#ffffff';
+  lctx.font = 'bold 13px Arial, sans-serif';
+  lctx.textAlign = 'center';
+  lctx.textBaseline = 'middle';
+  lctx.fillText('APEX', cx, cy + 4);
+
+  // "powered by Claude" small text
+  lctx.fillStyle = '#ff8844';
+  lctx.font = '5px Arial, sans-serif';
+  lctx.fillText('powered by Claude', cx, cy + 13);
+
+  // Code icon at bottom (small </> symbol)
+  lctx.fillStyle = '#88aacc';
+  lctx.font = 'bold 7px Courier New';
+  lctx.fillText('</>', cx, cy + 21);
+}
+renderLogo();
+
+// ---- GAME STATE ----
+let state = 'title'; // title | playing | gameover
+let gameOverReason = 'backlog'; // 'backlog' | 'insanity'
+let score = 0;
+let hiScore = parseInt(localStorage.getItem('apex_hiscore') || '0');
+let wave = 1;
+let waveTimer = 0;
+let spawnTimer = 0;
+let spawnInterval = 2200;
+let accessCardTimer = 0;
+let accessCardInterval = 1200;
+let difficultyTimer = 0;
+let shakeTimer = 0;
+let shakeIntensity = 0;
+let comboCount = 0;
+let comboTimer = 0;
+
+// Player
+let player = { x: W / 2, y: H - 100, speed: 5, alive: true };
+let lastShot = 0;
+
+// Collections
+let bullets = [];
+let enemies = [];
+let fragments = [];
+let particles = [];
+let backlogBlocks = [];
+let missedTexts = [];
+
+// Backlog height (total pixel height of accumulated blocks)
+let backlogHeight = 0;
+
+// Input
+const keys = {};
+document.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (state === 'title' && (e.code === 'Space' || e.code === 'Enter')) {
+    startGame();
+  }
+  if (state === 'gameover' && (e.code === 'Space' || e.code === 'Enter')) {
+    state = 'title';
+  }
+  if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+    e.preventDefault();
+  }
+});
+document.addEventListener('keyup', e => { keys[e.code] = false; });
+
+// ---- HELPERS ----
+function rand(min, max) { return Math.random() * (max - min) + min; }
+function randInt(min, max) { return Math.floor(rand(min, max + 1)); }
+function lerp(a, b, t) { return a + (b - a) * t; }
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+function rectsOverlap(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+function pickWeightedEnemyType() {
+  let r = Math.random() * TOTAL_SPAWN_WEIGHT;
+  for (const t of ENEMY_TYPES) {
+    r -= t.spawnWeight;
+    if (r <= 0) return t;
+  }
+  return ENEMY_TYPES[0];
+}
+
+// ---- PARTICLE SYSTEM ----
+function spawnParticles(x, y, color, count) {
+  for (let i = 0; i < count; i++) {
+    particles.push({
+      x, y,
+      vx: rand(-3, 3),
+      vy: rand(-4, 1),
+      life: rand(0.5, 1.0),
+      maxLife: 1.0,
+      color,
+      size: rand(2, 5)
+    });
+  }
+}
+
+function spawnExplosion(x, y, color) {
+  for (let i = 0; i < 16; i++) {
+    const angle = (Math.PI * 2 / 16) * i + rand(-0.2, 0.2);
+    const speed = rand(1, 5);
+    particles.push({
+      x, y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: rand(0.4, 1.0),
+      maxLife: 1.0,
+      color,
+      size: rand(2, 6)
+    });
+  }
+}
+
+// ---- BACKLOG SYSTEM ----
+function addToBacklog(enemy) {
+  const blockW = enemy.type ? enemy.type.width + 20 : rand(40, 70);
+  const block = {
+    x: enemy.x - blockW / 2 + rand(-20, 20),
+    w: blockW,
+    h: BACKLOG_BLOCK_H,
+    color: enemy.type ? enemy.type.color : (enemy.fragType ? enemy.fragType.color : '#666'),
+    label: enemy.type ? enemy.type.abbr : (enemy.fragType ? enemy.fragType.abbr : '???'),
+    alpha: 1,
+    settled: false,
+    vy: 2,
+    targetY: 0
+  };
+  block.x = clamp(block.x, 10, W - block.w - 10);
+  block.y = H - backlogHeight - block.h - 5;
+  block.targetY = block.y;
+  backlogBlocks.push(block);
+  backlogHeight += BACKLOG_BLOCK_H * 0.6;
+  shakeTimer = 0.3;
+  shakeIntensity = 4;
+
+  // Missed opportunity floating text
+  missedTexts.push({
+    x: enemy.x,
+    y: H - backlogHeight - 30,
+    text: 'MISSED OPPORTUNITY',
+    life: 1.5,
+    alpha: 1
+  });
+}
+
+// ---- ENEMY SPAWNING ----
+function spawnEnemy(forceType) {
+  const type = forceType || pickWeightedEnemyType();
+  const x = rand(type.width, W - type.width);
+  const speedMul = 1 + (wave - 1) * 0.08;
+  const sway = rand(0.3, 1.2);
+
+  enemies.push({
+    x,
+    y: -type.height,
+    type,
+    hp: type.hp + (type.abbr === 'JIRA' ? Math.floor(wave / 3) : Math.floor(wave / 5)),
+    maxHp: type.hp + (type.abbr === 'JIRA' ? Math.floor(wave / 3) : Math.floor(wave / 5)),
+    speed: ENEMY_BASE_SPEED * type.speedMul * speedMul * rand(0.85, 1.15),
+    sway,
+    swayOffset: rand(0, Math.PI * 2),
+    time: 0,
+    flash: 0,
+    width: type.width,
+    height: type.height
+  });
+}
+
+function spawnFragments(x, y, parentType) {
+  const count = randInt(parentType.fragMin, parentType.fragMax);
+  for (let i = 0; i < count; i++) {
+    const ft = FRAGMENT_TYPES[randInt(0, FRAGMENT_TYPES.length - 1)];
+    const angle = (Math.PI * 2 / count) * i + rand(-0.3, 0.3);
+    const spd = rand(1.5, 4);
+    fragments.push({
+      x: x + Math.cos(angle) * 15,
+      y: y + Math.sin(angle) * 15,
+      vx: Math.cos(angle) * spd,
+      vy: -Math.abs(Math.sin(angle)) * spd * 0.5 - 1,
+      fragType: ft,
+      hp: 1,
+      width: ft.width,
+      height: ft.height,
+      speed: rand(FRAGMENT_SPEED_MIN, FRAGMENT_SPEED_MAX) * (1 + (wave - 1) * 0.05),
+      flash: 0,
+      settled: false,
+      time: 0
+    });
+  }
+}
+
+// ---- BULLETS ----
+function shoot() {
+  const now = performance.now();
+  if (now - lastShot < SHOOT_COOLDOWN) return;
+  lastShot = now;
+
+  // Pick a random laser color
+  laserColorIndex = randInt(0, LASER_COLORS.length - 1);
+  const lc = LASER_COLORS[laserColorIndex];
+
+  bullets.push({
+    x: player.x - BULLET_W / 2,
+    y: player.y - PLAYER_H / 2 - BULLET_H,
+    w: BULLET_W,
+    h: BULLET_H,
+    color: lc
+  });
+  // Muzzle flash particles
+  spawnParticles(player.x, player.y - PLAYER_H / 2, lc.particle, 3);
+}
+
+// ---- START / RESET ----
+function startGame() {
+  state = 'playing';
+  gameOverReason = 'backlog';
+  score = 0;
+  wave = 1;
+  waveTimer = 0;
+  spawnTimer = 0;
+  spawnInterval = 2200;
+  accessCardTimer = 0;
+  accessCardInterval = 1200;
+  difficultyTimer = 0;
+  backlogHeight = 0;
+  comboCount = 0;
+  comboTimer = 0;
+  player = { x: W / 2, y: H - 100, speed: 5, alive: true };
+  bullets = [];
+  enemies = [];
+  fragments = [];
+  particles = [];
+  backlogBlocks = [];
+  missedTexts = [];
+}
+
+// ---- DRAWING HELPERS ----
+function drawRoundedRect(x, y, w, h, r, fill, stroke) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+  if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1.5; ctx.stroke(); }
+}
+
+function drawJiraIcon(cx, cy, s) {
+  // Blue diamond shape - larger for JIRA
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(Math.PI / 4);
+  ctx.fillStyle = '#2684FF';
+  ctx.fillRect(-s/2, -s/2, s, s);
+  ctx.restore();
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(cx - 4, cy);
+  ctx.lineTo(cx - 1, cy + 4);
+  ctx.lineTo(cx + 5, cy - 4);
+  ctx.stroke();
+}
+
+function drawAccessIcon(cx, cy, s) {
+  // Green card with keyhole
+  ctx.fillStyle = '#00C853';
+  const cw = s * 1.8;
+  const ch = s * 1.2;
+  drawRoundedRect(cx - cw/2, cy - ch/2, cw, ch, 2, '#00C853', '#66ff99');
+  // Keyhole circle
+  ctx.fillStyle = '#003d19';
+  ctx.beginPath();
+  ctx.arc(cx - 2, cy - 1, 3, 0, Math.PI * 2);
+  ctx.fill();
+  // Keyhole slot
+  ctx.fillRect(cx - 3, cy, 2, 4);
+  // Chip lines
+  ctx.strokeStyle = '#003d19';
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(cx + 3, cy - 3);
+  ctx.lineTo(cx + cw/2 - 2, cy - 3);
+  ctx.moveTo(cx + 3, cy);
+  ctx.lineTo(cx + cw/2 - 2, cy);
+  ctx.moveTo(cx + 3, cy + 3);
+  ctx.lineTo(cx + cw/2 - 2, cy + 3);
+  ctx.stroke();
+}
+
+function drawTeamsIcon(cx, cy, s) {
+  ctx.fillStyle = '#7B83EB';
+  ctx.beginPath();
+  ctx.arc(cx, cy, s, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.font = `bold ${s}px Courier New`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('T', cx, cy + 1);
+}
+
+function drawAlertIcon(cx, cy, s) {
+  ctx.fillStyle = '#FF5630';
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - s);
+  ctx.lineTo(cx + s, cy + s * 0.7);
+  ctx.lineTo(cx - s, cy + s * 0.7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.font = `bold ${Math.floor(s * 1.1)}px Courier New`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('!', cx, cy + 1);
+}
+
+function drawShip(x, y) {
+  ctx.save();
+  ctx.translate(x, y);
+
+  // Engine glow
+  const glowSize = 12 + Math.sin(performance.now() / 100) * 4;
+  const grd = ctx.createRadialGradient(0, PLAYER_H / 2, 0, 0, PLAYER_H / 2, glowSize + 12);
+  grd.addColorStop(0, 'rgba(0, 200, 255, 0.9)');
+  grd.addColorStop(0.4, 'rgba(0, 100, 255, 0.4)');
+  grd.addColorStop(1, 'rgba(0, 50, 255, 0)');
+  ctx.fillStyle = grd;
+  ctx.fillRect(-glowSize - 6, PLAYER_H / 2 - 6, glowSize * 2 + 12, glowSize + 16);
+
+  // Ship body - larger angular shape
+  ctx.fillStyle = '#1a2a3a';
+  ctx.strokeStyle = '#00ccff';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(0, -PLAYER_H / 2);                // nose
+  ctx.lineTo(PLAYER_W / 2, PLAYER_H / 3);      // right wing tip
+  ctx.lineTo(PLAYER_W / 3, PLAYER_H / 2);      // right wing back
+  ctx.lineTo(PLAYER_W / 6, PLAYER_H / 4);
+  ctx.lineTo(-PLAYER_W / 6, PLAYER_H / 4);
+  ctx.lineTo(-PLAYER_W / 3, PLAYER_H / 2);     // left wing back
+  ctx.lineTo(-PLAYER_W / 2, PLAYER_H / 3);     // left wing tip
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Wing accent lines
+  ctx.strokeStyle = 'rgba(0, 200, 255, 0.4)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(-PLAYER_W / 6, PLAYER_H / 4);
+  ctx.lineTo(-PLAYER_W / 2 + 6, PLAYER_H / 3 - 2);
+  ctx.moveTo(PLAYER_W / 6, PLAYER_H / 4);
+  ctx.lineTo(PLAYER_W / 2 - 6, PLAYER_H / 3 - 2);
+  ctx.stroke();
+
+  // Draw the APEX logo in the center of the ship
+  ctx.drawImage(logoCanvas, -logoSize / 2, -PLAYER_H / 2 - 2, logoSize, logoSize);
+
+  ctx.restore();
+}
+
+function drawEnemy(e) {
+  const { x, y, type, hp, maxHp, flash, width, height } = e;
+  const lx = x - width / 2;
+  const ly = y - height / 2;
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  drawRoundedRect(lx + 3, ly + 3, width, height, 5, 'rgba(0,0,0,0.3)');
+
+  // Body
+  const bodyColor = flash > 0 ? '#fff' : type.colorDark;
+  const borderColor = flash > 0 ? '#fff' : type.color;
+  drawRoundedRect(lx, ly, width, height, 5, bodyColor, borderColor);
+
+  // Icon
+  const iconX = lx + (type.abbr === 'JIRA' ? 18 : 12);
+  const iconSize = type.abbr === 'JIRA' ? 9 : 7;
+  if (type.icon === 'jira') drawJiraIcon(iconX, y, iconSize);
+  else if (type.icon === 'access') drawAccessIcon(iconX, y, iconSize);
+  else if (type.icon === 'teams') drawTeamsIcon(lx + 11, y, 6);
+  else if (type.icon === 'alert') drawAlertIcon(lx + 11, y, 6);
+
+  // Label
+  ctx.fillStyle = '#fff';
+  const fontSize = type.abbr === 'JIRA' ? 12 : (type.abbr === 'ACCS' ? 9 : 9);
+  ctx.font = `bold ${fontSize}px Courier New`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  const labelX = type.abbr === 'JIRA' ? lx + 34 : (type.abbr === 'ACCS' ? lx + 22 : lx + 22);
+  ctx.fillText(type.abbr, labelX, y);
+
+  // JIRA extra: show issue key
+  if (type.abbr === 'JIRA') {
+    ctx.fillStyle = '#aac4ee';
+    ctx.font = '8px Courier New';
+    ctx.fillText('APEX-' + (1000 + Math.floor(e.time * 100) % 999), lx + 34, y + 12);
+  }
+
+  // HP bar
+  if (hp < maxHp) {
+    const barW = width - 4;
+    const barH = 3;
+    const barX = lx + 2;
+    const barY = ly + height + 3;
+    ctx.fillStyle = '#333';
+    ctx.fillRect(barX, barY, barW, barH);
+    ctx.fillStyle = type.color;
+    ctx.fillRect(barX, barY, barW * (hp / maxHp), barH);
+  }
+}
+
+function drawFragment(f) {
+  const { x, y, fragType, flash, width, height } = f;
+  const lx = x - width / 2;
+  const ly = y - height / 2;
+  const color = flash > 0 ? '#fff' : fragType.color;
+  drawRoundedRect(lx, ly, width, height, 3, color + '40', color);
+
+  ctx.fillStyle = flash > 0 ? '#fff' : '#ddd';
+  ctx.font = 'bold 8px Courier New';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(fragType.abbr, x, y);
+}
+
+// ---- INSANITY ZONE ----
+function drawInsanityZone() {
+  const grad = ctx.createLinearGradient(0, 0, 0, INSANITY_ZONE_H + 20);
+  grad.addColorStop(0, 'rgba(255, 0, 60, 0.6)');
+  grad.addColorStop(0.6, 'rgba(255, 0, 60, 0.15)');
+  grad.addColorStop(1, 'rgba(255, 0, 60, 0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, INSANITY_ZONE_H + 20);
+
+  // Pulsing text
+  const pulse = 0.6 + Math.sin(performance.now() / 300) * 0.4;
+  ctx.fillStyle = `rgba(255, 80, 80, ${pulse})`;
+  ctx.font = 'bold 18px Courier New';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('= = = I N S A N I T Y = = =', W / 2, 25);
+
+  // Dashed line
+  ctx.strokeStyle = `rgba(255, 60, 60, ${0.4 + pulse * 0.3})`;
+  ctx.lineWidth = 1;
+  ctx.setLineDash([8, 6]);
+  ctx.beginPath();
+  ctx.moveTo(0, INSANITY_ZONE_H);
+  ctx.lineTo(W, INSANITY_ZONE_H);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+// ---- BACKLOG ZONE ----
+function drawBacklog() {
+  if (backlogHeight <= 0 && backlogBlocks.length === 0) return;
+
+  const backlogTop = H - backlogHeight;
+  const grad = ctx.createLinearGradient(0, backlogTop - 30, 0, H);
+  grad.addColorStop(0, 'rgba(80, 40, 0, 0)');
+  grad.addColorStop(0.15, 'rgba(80, 40, 0, 0.2)');
+  grad.addColorStop(1, 'rgba(80, 40, 0, 0.5)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, backlogTop - 30, W, backlogHeight + 30);
+
+  if (backlogHeight > 10) {
+    const labelPulse = 0.5 + Math.sin(performance.now() / 400) * 0.3;
+    ctx.fillStyle = `rgba(255, 160, 50, ${labelPulse})`;
+    ctx.font = 'bold 13px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText('- - - T H E   B A C K L O G - - -', W / 2, backlogTop - 8);
+  }
+
+  for (const b of backlogBlocks) {
+    ctx.globalAlpha = b.alpha;
+    drawRoundedRect(b.x, b.y, b.w, b.h, 3, b.color + '55', b.color + '99');
+    ctx.fillStyle = '#fff8';
+    ctx.font = 'bold 8px Courier New';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(b.label, b.x + b.w / 2, b.y + b.h / 2);
+    ctx.globalAlpha = 1;
+  }
+}
+
+// ---- MISSED OPPORTUNITY TEXTS ----
+function drawMissedTexts() {
+  for (const mt of missedTexts) {
+    ctx.fillStyle = `rgba(255, 100, 50, ${mt.alpha})`;
+    ctx.font = 'bold 11px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText(mt.text, mt.x, mt.y);
+  }
+}
+
+// ---- HUD ----
+function drawHUD() {
+  ctx.fillStyle = '#8899aa';
+  ctx.font = '13px Courier New';
+  ctx.textAlign = 'left';
+  ctx.fillText(`SCORE: ${score}`, 15, H - 12);
+  ctx.textAlign = 'right';
+  ctx.fillText(`HI: ${hiScore}`, W - 15, H - 12);
+  ctx.textAlign = 'center';
+  ctx.fillText(`WAVE ${wave}`, W / 2, H - 12);
+
+  // Combo
+  if (comboCount > 1 && comboTimer > 0) {
+    const a = Math.min(1, comboTimer);
+    ctx.fillStyle = `rgba(255, 220, 50, ${a})`;
+    ctx.font = `bold ${14 + comboCount}px Courier New`;
+    ctx.textAlign = 'right';
+    ctx.fillText(`x${comboCount} COMBO`, W - 15, 75);
+  }
+
+  // Backlog danger meter
+  const pct = backlogHeight / (H - INSANITY_ZONE_H - 60);
+  if (pct > 0) {
+    const meterW = 8;
+    const meterH = 200;
+    const mx = W - 25;
+    const my = 90;
+    ctx.fillStyle = '#1a1a2a';
+    ctx.fillRect(mx, my, meterW, meterH);
+    const dangerColor = pct > 0.7 ? '#ff3030' : pct > 0.4 ? '#ff8800' : '#44aa44';
+    ctx.fillStyle = dangerColor;
+    ctx.fillRect(mx, my + meterH * (1 - pct), meterW, meterH * pct);
+    ctx.strokeStyle = '#334';
+    ctx.strokeRect(mx, my, meterW, meterH);
+    ctx.fillStyle = '#778';
+    ctx.font = '9px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText('BACKLOG', mx + meterW / 2, my - 5);
+  }
+}
+
+// ---- STARFIELD ----
+const stars = [];
+for (let i = 0; i < 120; i++) {
+  stars.push({
+    x: rand(0, W),
+    y: rand(0, H),
+    speed: rand(0.2, 1),
+    size: rand(0.5, 2),
+    brightness: rand(0.2, 0.7)
+  });
+}
+
+function drawStars(dt) {
+  for (const s of stars) {
+    s.y += s.speed * dt * 40;
+    if (s.y > H) { s.y = 0; s.x = rand(0, W); }
+    ctx.fillStyle = `rgba(150, 170, 200, ${s.brightness})`;
+    ctx.fillRect(s.x, s.y, s.size, s.size);
+  }
+}
+
+// ---- TITLE SCREEN ----
+function drawTitle() {
+  const t = performance.now() / 1000;
+
+  // Draw large logo in center
+  const bigLogoSize = 180;
+  const bigLogo = document.createElement('canvas');
+  bigLogo.width = bigLogoSize;
+  bigLogo.height = bigLogoSize;
+  const blc = bigLogo.getContext('2d');
+
+  const bcx = bigLogoSize / 2;
+  const bcy = bigLogoSize / 2;
+
+  // Diamond
+  blc.save();
+  blc.translate(bcx, bcy);
+  blc.rotate(Math.PI / 4);
+  const ds = bigLogoSize * 0.36;
+  blc.shadowColor = '#00ccff';
+  blc.shadowBlur = 20;
+  blc.fillStyle = '#0d2a4a';
+  blc.strokeStyle = '#00ccff';
+  blc.lineWidth = 3;
+  const br = 10;
+  blc.beginPath();
+  blc.moveTo(-ds + br, -ds);
+  blc.lineTo(ds - br, -ds);
+  blc.quadraticCurveTo(ds, -ds, ds, -ds + br);
+  blc.lineTo(ds, ds - br);
+  blc.quadraticCurveTo(ds, ds, ds - br, ds);
+  blc.lineTo(-ds + br, ds);
+  blc.quadraticCurveTo(-ds, ds, -ds, ds - br);
+  blc.lineTo(-ds, -ds + br);
+  blc.quadraticCurveTo(-ds, -ds, -ds + br, -ds);
+  blc.closePath();
+  blc.fill();
+  blc.stroke();
+  blc.shadowBlur = 0;
+  blc.restore();
+
+  // Chevrons
+  blc.strokeStyle = '#c0c8d0';
+  blc.lineWidth = 5;
+  blc.lineCap = 'round';
+  blc.lineJoin = 'round';
+  blc.beginPath();
+  blc.moveTo(bcx - 35, bcy - 12);
+  blc.lineTo(bcx, bcy - 42);
+  blc.lineTo(bcx + 35, bcy - 12);
+  blc.stroke();
+  blc.lineWidth = 3;
+  blc.beginPath();
+  blc.moveTo(bcx - 20, bcy - 8);
+  blc.lineTo(bcx, bcy - 26);
+  blc.lineTo(bcx + 20, bcy - 8);
+  blc.stroke();
+
+  // APEX
+  blc.fillStyle = '#ffffff';
+  blc.font = 'bold 36px Arial, sans-serif';
+  blc.textAlign = 'center';
+  blc.textBaseline = 'middle';
+  blc.fillText('APEX', bcx, bcy + 10);
+
+  // powered by Claude
+  blc.fillStyle = '#ff8844';
+  blc.font = '12px Arial, sans-serif';
+  blc.fillText('powered by Claude', bcx, bcy + 35);
+
+  // </> icon
+  blc.fillStyle = '#88aacc';
+  blc.font = 'bold 16px Courier New';
+  blc.fillText('</>', bcx, bcy + 58);
+
+  // Pulsing glow
+  const glowAlpha = 0.3 + Math.sin(t * 2) * 0.15;
+  ctx.globalAlpha = glowAlpha;
+  ctx.drawImage(bigLogo, W / 2 - bigLogoSize / 2 - 5, H / 2 - 180 - 5, bigLogoSize + 10, bigLogoSize + 10);
+  ctx.globalAlpha = 1;
+  ctx.drawImage(bigLogo, W / 2 - bigLogoSize / 2, H / 2 - 180, bigLogoSize, bigLogoSize);
+
+  ctx.fillStyle = '#6699cc';
+  ctx.font = '16px Courier New';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('DEFENDERS OF OUTCOMES', W / 2, H / 2 + 20);
+
+  ctx.fillStyle = '#667788';
+  ctx.font = '12px Courier New';
+  ctx.fillText('Protect the bottom line from the onslaught of work items', W / 2, H / 2 + 50);
+
+  // Controls
+  const controlY = H / 2 + 90;
+  ctx.fillStyle = '#556677';
+  ctx.font = '13px Courier New';
+  ctx.fillText('[ARROW KEYS / WASD]  Move', W / 2, controlY);
+  ctx.fillText('[SPACE]  Shoot', W / 2, controlY + 25);
+
+  // Enemy preview
+  const previewY = H / 2 + 155;
+  ctx.fillStyle = '#445566';
+  ctx.font = '11px Courier New';
+  ctx.fillText('INCOMING THREATS:', W / 2, previewY);
+
+  const types = ['JIRA Issue', 'Access Card', 'Teams Ping', 'OpsGenie Alert'];
+  const colors = ['#2684FF', '#00C853', '#7B83EB', '#FF5630'];
+  for (let i = 0; i < 4; i++) {
+    ctx.fillStyle = colors[i];
+    ctx.fillText(types[i], W / 2 + (i - 1.5) * 130, previewY + 22);
+  }
+
+  // Start prompt
+  const blink = Math.sin(t * 3) > 0;
+  if (blink) {
+    ctx.fillStyle = '#aabbcc';
+    ctx.font = 'bold 16px Courier New';
+    ctx.fillText('PRESS SPACE TO BEGIN', W / 2, H / 2 + 230);
+  }
+
+  if (hiScore > 0) {
+    ctx.fillStyle = '#667788';
+    ctx.font = '12px Courier New';
+    ctx.fillText(`HIGH SCORE: ${hiScore}`, W / 2, H / 2 + 265);
+  }
+}
+
+// ---- GAME OVER ----
+function drawGameOver() {
+  ctx.fillStyle = 'rgba(10, 0, 0, 0.8)';
+  ctx.fillRect(0, 0, W, H);
+
+  const t = performance.now() / 1000;
+
+  if (gameOverReason === 'insanity') {
+    // Player touched insanity directly
+    ctx.fillStyle = '#ff2222';
+    ctx.font = 'bold 36px Courier New';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText("YOU'VE GONE INSANE!", W / 2, H / 2 - 120);
+
+    ctx.fillStyle = '#ff6666';
+    ctx.font = '14px Courier New';
+    const line1 = "YOUR MIND HAS BEEN BROKEN BY THE INSANITY!";
+    ctx.fillText(line1, W / 2, H / 2 - 75);
+
+    // The APEX-1234 blocked message
+    ctx.fillStyle = '#cc4444';
+    ctx.font = '13px Courier New';
+    const line2 = 'Also when is APEX-1234 going to be done';
+    const line3 = 'because we are BLOCKED';
+    ctx.fillText(line2, W / 2, H / 2 - 45);
+    ctx.fillText(line3, W / 2, H / 2 - 28);
+
+    // Glitch effect on text
+    if (Math.random() < 0.1) {
+      ctx.fillStyle = '#ff000044';
+      ctx.fillRect(0, H / 2 - 130 + rand(-20, 60), W, 3);
+    }
+  } else {
+    // Backlog consumed everything
+    ctx.fillStyle = '#ff4444';
+    ctx.font = 'bold 40px Courier New';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('TOTAL INSANITY', W / 2, H / 2 - 100);
+
+    ctx.fillStyle = '#cc8888';
+    ctx.font = '14px Courier New';
+    ctx.fillText('The backlog has consumed everything.', W / 2, H / 2 - 55);
+
+    ctx.fillStyle = '#cc4444';
+    ctx.font = '13px Courier New';
+    ctx.fillText('Also when is APEX-1234 going to be done', W / 2, H / 2 - 30);
+    ctx.fillText('because we are BLOCKED', W / 2, H / 2 - 13);
+  }
+
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 22px Courier New';
+  ctx.textAlign = 'center';
+  ctx.fillText(`FINAL SCORE: ${score}`, W / 2, H / 2 + 30);
+
+  ctx.fillStyle = '#aaa';
+  ctx.font = '14px Courier New';
+  ctx.fillText(`WAVE REACHED: ${wave}`, W / 2, H / 2 + 60);
+
+  if (score >= hiScore && score > 0) {
+    ctx.fillStyle = '#ffcc00';
+    ctx.font = 'bold 16px Courier New';
+    ctx.fillText('NEW HIGH SCORE!', W / 2, H / 2 + 95);
+  }
+
+  const blink = Math.sin(t * 3) > 0;
+  if (blink) {
+    ctx.fillStyle = '#889';
+    ctx.font = '14px Courier New';
+    ctx.fillText('PRESS SPACE FOR TITLE', W / 2, H / 2 + 140);
+  }
+}
+
+// ---- TRIGGER GAME OVER ----
+function triggerGameOver(reason) {
+  state = 'gameover';
+  gameOverReason = reason;
+  if (score > hiScore) {
+    hiScore = score;
+    localStorage.setItem('apex_hiscore', hiScore.toString());
+  }
+}
+
+// ---- UPDATE ----
+let lastTime = performance.now();
+
+function update() {
+  const now = performance.now();
+  const dt = Math.min((now - lastTime) / 1000, 0.05);
+  lastTime = now;
+
+  if (state !== 'playing') return;
+
+  // ---- Player movement ----
+  const effectiveFloor = H - backlogHeight - PLAYER_H;
+  const effectiveCeiling = INSANITY_ZONE_H + PLAYER_H / 2;
+  const moveSpeed = player.speed * dt * 60;
+
+  if (keys['ArrowLeft'] || keys['KeyA']) player.x -= moveSpeed;
+  if (keys['ArrowRight'] || keys['KeyD']) player.x += moveSpeed;
+  if (keys['ArrowUp'] || keys['KeyW']) player.y -= moveSpeed;
+  if (keys['ArrowDown'] || keys['KeyS']) player.y += moveSpeed;
+
+  player.x = clamp(player.x, PLAYER_W / 2 + 5, W - PLAYER_W / 2 - 5);
+  player.y = clamp(player.y, PLAYER_H / 2, effectiveFloor);
+
+  // ---- Check if player touches insanity zone ----
+  if (player.y - PLAYER_H / 2 <= INSANITY_ZONE_H) {
+    triggerGameOver('insanity');
+    return;
+  }
+
+  // Shooting
+  if (keys['Space']) shoot();
+
+  // ---- Spawn enemies (weighted) ----
+  spawnTimer += dt * 1000;
+  if (spawnTimer >= spawnInterval) {
+    spawnTimer -= spawnInterval;
+    spawnEnemy();
+    if (wave >= 3 && Math.random() < 0.3) spawnEnemy();
+    if (wave >= 6 && Math.random() < 0.2) spawnEnemy();
+  }
+
+  // ---- Extra access card spawns (more frequent) ----
+  accessCardTimer += dt * 1000;
+  const acInterval = Math.max(400, accessCardInterval - wave * 40);
+  if (accessCardTimer >= acInterval) {
+    accessCardTimer -= acInterval;
+    if (Math.random() < 0.45) {
+      spawnEnemy(ENEMY_TYPES[1]); // Force Access Card
+    }
+  }
+
+  // ---- Difficulty scaling ----
+  difficultyTimer += dt;
+  if (difficultyTimer > 18) {
+    difficultyTimer = 0;
+    wave++;
+    spawnInterval = Math.max(600, spawnInterval - 120);
+  }
+
+  // ---- Update bullets ----
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    bullets[i].y -= BULLET_SPEED;
+    if (bullets[i].y + BULLET_H < 0) {
+      bullets.splice(i, 1);
+    }
+  }
+
+  // ---- Update enemies ----
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const e = enemies[i];
+    e.time += dt;
+    e.y += e.speed * dt * 60;
+    e.x += Math.sin(e.time * e.sway + e.swayOffset) * 0.5;
+    e.x = clamp(e.x, e.width / 2, W - e.width / 2);
+    if (e.flash > 0) e.flash -= dt * 5;
+
+    // Hit bottom (backlog)
+    if (e.y + e.height / 2 >= H - backlogHeight) {
+      addToBacklog(e);
+      enemies.splice(i, 1);
+      continue;
+    }
+
+    // Bullet collision
+    for (let j = bullets.length - 1; j >= 0; j--) {
+      const b = bullets[j];
+      if (rectsOverlap(
+        { x: b.x, y: b.y, w: b.w, h: b.h },
+        { x: e.x - e.width / 2, y: e.y - e.height / 2, w: e.width, h: e.height }
+      )) {
+        e.hp--;
+        e.flash = 1;
+        spawnParticles(b.x + b.w / 2, b.y, e.type.color, 4);
+        bullets.splice(j, 1);
+
+        if (e.hp <= 0) {
+          spawnExplosion(e.x, e.y, e.type.color);
+          spawnFragments(e.x, e.y, e.type);
+          score += e.type.points;
+          comboCount++;
+          comboTimer = 2.5;
+          if (comboCount > 2) score += comboCount * 10;
+          enemies.splice(i, 1);
+        }
+        break;
+      }
+    }
+  }
+
+  // ---- Update fragments ----
+  for (let i = fragments.length - 1; i >= 0; i--) {
+    const f = fragments[i];
+    f.time += dt;
+    if (f.time < 0.3) {
+      f.x += f.vx * dt * 60;
+      f.y += f.vy * dt * 60;
+      f.vy += 6 * dt;
+    } else {
+      f.y += f.speed * dt * 60;
+      f.x += Math.sin(f.time * 2) * 0.3;
+    }
+    f.x = clamp(f.x, f.width / 2, W - f.width / 2);
+    if (f.flash > 0) f.flash -= dt * 5;
+
+    if (f.y + f.height / 2 >= H - backlogHeight) {
+      addToBacklog(f);
+      fragments.splice(i, 1);
+      continue;
+    }
+
+    for (let j = bullets.length - 1; j >= 0; j--) {
+      const b = bullets[j];
+      if (rectsOverlap(
+        { x: b.x, y: b.y, w: b.w, h: b.h },
+        { x: f.x - f.width / 2, y: f.y - f.height / 2, w: f.width, h: f.height }
+      )) {
+        f.hp--;
+        f.flash = 1;
+        spawnParticles(b.x + b.w / 2, b.y, f.fragType.color, 3);
+        bullets.splice(j, 1);
+        if (f.hp <= 0) {
+          spawnExplosion(f.x, f.y, f.fragType.color);
+          score += 25;
+          comboCount++;
+          comboTimer = 2.5;
+          if (comboCount > 3) score += comboCount * 5;
+          fragments.splice(i, 1);
+        }
+        break;
+      }
+    }
+  }
+
+  // ---- Combo timer ----
+  if (comboTimer > 0) {
+    comboTimer -= dt;
+    if (comboTimer <= 0) comboCount = 0;
+  }
+
+  // ---- Particles ----
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx * dt * 60;
+    p.y += p.vy * dt * 60;
+    p.life -= dt;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+
+  // ---- Missed texts ----
+  for (let i = missedTexts.length - 1; i >= 0; i--) {
+    const mt = missedTexts[i];
+    mt.life -= dt;
+    mt.y -= dt * 20;
+    mt.alpha = Math.max(0, mt.life / 1.5);
+    if (mt.life <= 0) missedTexts.splice(i, 1);
+  }
+
+  // ---- Screen shake ----
+  if (shakeTimer > 0) shakeTimer -= dt;
+
+  // ---- Check game over: backlog pushes player into insanity ----
+  if (player.y <= effectiveCeiling + 5 && backlogHeight >= H - INSANITY_ZONE_H - PLAYER_H - 20) {
+    triggerGameOver('backlog');
+  }
+}
+
+// ---- RENDER ----
+function render() {
+  const dt = 1 / 60;
+
+  let sx = 0, sy = 0;
+  if (shakeTimer > 0) {
+    sx = (Math.random() - 0.5) * shakeIntensity * 2;
+    sy = (Math.random() - 0.5) * shakeIntensity * 2;
+  }
+
+  ctx.save();
+  ctx.translate(sx, sy);
+
+  ctx.fillStyle = '#0a0a1a';
+  ctx.fillRect(-10, -10, W + 20, H + 20);
+
+  drawStars(dt);
+
+  if (state === 'title') {
+    drawTitle();
+    ctx.restore();
+    return;
+  }
+
+  // Insanity zone
+  drawInsanityZone();
+
+  // Backlog
+  drawBacklog();
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(30, 40, 60, 0.3)';
+  ctx.lineWidth = 0.5;
+  for (let gx = 0; gx < W; gx += 80) {
+    ctx.beginPath();
+    ctx.moveTo(gx, 0);
+    ctx.lineTo(gx, H);
+    ctx.stroke();
+  }
+
+  // Bullets - multi-color
+  for (const b of bullets) {
+    const lc = b.color;
+    const bGrad = ctx.createLinearGradient(b.x + b.w / 2, b.y, b.x + b.w / 2, b.y + b.h);
+    bGrad.addColorStop(0, lc.core);
+    bGrad.addColorStop(1, lc.glow);
+    ctx.fillStyle = bGrad;
+    ctx.fillRect(b.x, b.y, b.w, b.h);
+    // Outer glow
+    ctx.fillStyle = lc.trail;
+    ctx.fillRect(b.x - 2, b.y - 2, b.w + 4, b.h + 8);
+    // Trailing glow
+    ctx.fillStyle = lc.trail;
+    ctx.fillRect(b.x - 1, b.y + b.h, b.w + 2, 8);
+  }
+
+  // Enemies
+  for (const e of enemies) drawEnemy(e);
+
+  // Fragments
+  for (const f of fragments) drawFragment(f);
+
+  // Particles
+  for (const p of particles) {
+    const alpha = p.life / p.maxLife;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = p.color;
+    ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+  }
+  ctx.globalAlpha = 1;
+
+  // Missed opportunity texts
+  drawMissedTexts();
+
+  // Player
+  if (player.alive) drawShip(player.x, player.y);
+
+  // Warning when near insanity
+  if (player.y - PLAYER_H / 2 < INSANITY_ZONE_H + 60) {
+    const danger = 1 - ((player.y - PLAYER_H / 2 - INSANITY_ZONE_H) / 60);
+    const flash = Math.sin(performance.now() / 100) > 0 ? danger * 0.4 : 0;
+    ctx.fillStyle = `rgba(255, 0, 0, ${flash})`;
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.fillStyle = `rgba(255, 50, 50, ${danger * 0.8})`;
+    ctx.font = 'bold 20px Courier New';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('!! WARNING: APPROACHING INSANITY !!', W / 2, INSANITY_ZONE_H + 30);
+  }
+
+  // HUD
+  drawHUD();
+
+  // Game over overlay
+  if (state === 'gameover') drawGameOver();
+
+  ctx.restore();
+}
+
+// ---- MAIN LOOP ----
+function gameLoop() {
+  update();
+  render();
+  requestAnimationFrame(gameLoop);
+}
+
+gameLoop();
+</script>
+</body>
+</html>

@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Monster Catch</title>
+<style>
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #2A2A30; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+body { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+
+/* ── Desktop: fake phone frame ── */
+#cg-frame { width: 340px; background: #1F1F23; border-radius: 38px; padding: 9px; position: relative; box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.05) inset; flex-shrink: 0; }
+#cg-frame::before { content: ''; position: absolute; top: 20px; left: 50%; transform: translateX(-50%); width: 90px; height: 24px; background: #0A0A0C; border-radius: 14px; z-index: 50; }
+#cg-game { position: relative; width: 100%; height: 700px; border-radius: 30px; overflow: hidden; background: linear-gradient(to bottom, #B3E5FC 0%, #B3E5FC 55%, #81C784 55%, #66BB6A 100%); user-select: none; touch-action: none; }
+
+/* ── Real mobile: full viewport, no fake frame ── */
+@media (max-width: 500px) {
+  body { background: #000; display: block; }
+  #cg-frame { width: 100vw; background: none; border-radius: 0; padding: 0; box-shadow: none; }
+  #cg-frame::before { display: none; }
+  #cg-game { width: 100vw; height: 100dvh; border-radius: 0; }
+  #cg-hud      { top: max(14px, env(safe-area-inset-top, 14px)); }
+  #cg-ball     { bottom: max(110px, calc(env(safe-area-inset-bottom, 0px) + 110px)); }
+  #cg-hint     { bottom: max(96px,  calc(env(safe-area-inset-bottom, 0px) + 96px)); }
+  #cg-next     { bottom: max(110px, calc(env(safe-area-inset-bottom, 0px) + 110px)); }
+  #cg-pokedex  { bottom: max(18px,  calc(env(safe-area-inset-bottom, 0px) + 18px)); }
+}
+
+.cg-cloud { position: absolute; background: rgba(255,255,255,0.7); border-radius: 50%; pointer-events: none; }
+#cg-hud { position: absolute; top: 56px; left: 10px; right: 10px; display: flex; justify-content: space-between; z-index: 20; gap: 8px; pointer-events: none; }
+.cg-hud-card { background: rgba(255,255,255,0.9); padding: 5px 10px; border-radius: 8px; font-size: 13px; font-weight: 500; color: #212121; display: flex; align-items: center; gap: 6px; }
+.cg-ball-icon { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid #212121; background: linear-gradient(to bottom, #EF5350 0%, #EF5350 50%, #FAFAFA 50%, #FAFAFA 100%); vertical-align: middle; }
+.cg-ball-used { opacity: 0.25; filter: grayscale(1); }
+#cg-monster-wrap { position: absolute; top: 32%; left: 50%; transform: translate(-50%, -50%); width: 150px; height: 150px; pointer-events: none; }
+#cg-monster { width: 100%; height: 100%; }
+#cg-monster.idle   { animation: cgIdle   2.6s ease-in-out infinite; }
+#cg-monster.bounce { animation: cgBounce 0.55s cubic-bezier(.3,1.6,.6,1); }
+@keyframes cgIdle   { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+@keyframes cgBounce { 0% { transform: scale(0.1); opacity: 0; } 60% { transform: scale(1.15); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+#cg-shadow { position: absolute; top: 32%; left: 50%; transform: translate(-50%, 70px); width: 100px; height: 16px; background: rgba(0,0,0,0.2); border-radius: 50%; filter: blur(3px); pointer-events: none; }
+#cg-reticle { position: absolute; top: 32%; left: 50%; width: 200px; height: 200px; margin-left: -100px; margin-top: -100px; border: 4px solid #FBC02D; border-radius: 50%; box-shadow: 0 0 0 3px rgba(0,0,0,0.18) inset; pointer-events: none; transition: opacity 0.25s; }
+#cg-ball { position: absolute; width: 44px; height: 44px; border-radius: 50%; border: 3px solid #212121; background: linear-gradient(to bottom, #EF5350 0%, #EF5350 47%, #212121 47%, #212121 53%, #FAFAFA 53%, #FAFAFA 100%); bottom: 110px; left: 50%; margin-left: -22px; z-index: 7; cursor: grab; touch-action: none; --glow: none; box-shadow: var(--glow), inset -4px -4px 8px rgba(0,0,0,0.2); transform: translate(0,0) rotate(0deg); }
+#cg-ball:active { cursor: grabbing; }
+#cg-ball.charged { animation: cgChargedPulse 0.5s ease-in-out infinite alternate; }
+@keyframes cgChargedPulse { from { filter: brightness(1); } to { filter: brightness(1.25); } }
+#cg-ball::after { content: ''; position: absolute; top: 50%; left: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; background: #FAFAFA; border: 3px solid #212121; }
+#cg-hint { position: absolute; bottom: 96px; left: 0; right: 0; text-align: center; font-size: 11px; color: rgba(33,33,33,0.6); z-index: 4; pointer-events: none; transition: opacity 0.3s; font-weight: 500; padding: 0 16px; line-height: 1.4; }
+#cg-hint.hide { opacity: 0; }
+#cg-message { position: absolute; top: 60%; left: 50%; transform: translateX(-50%); font-size: 19px; font-weight: 500; color: #212121; text-shadow: 0 1px 8px rgba(255,255,255,0.95), 0 0 4px rgba(255,255,255,0.95); text-align: center; z-index: 8; pointer-events: none; opacity: 0; transition: opacity 0.25s; white-space: nowrap; }
+#cg-message.show { opacity: 1; }
+#cg-next { position: absolute; bottom: 110px; left: 50%; transform: translateX(-50%); padding: 10px 20px; font-size: 14px; font-weight: 500; border: 2.5px solid #212121; background: white; color: #212121; border-radius: 22px; cursor: pointer; font-family: inherit; z-index: 15; }
+#cg-next:hover  { background: #FAFAFA; }
+#cg-next:active { transform: translateX(-50%) scale(0.96); }
+#cg-pokedex { position: absolute; bottom: 18px; left: 10px; right: 10px; display: flex; gap: 6px; justify-content: center; z-index: 12; pointer-events: none; }
+.cg-dex-slot { width: 46px; height: 46px; background: rgba(255,255,255,0.85); border-radius: 9px; display: flex; align-items: center; justify-content: center; border: 1.5px solid rgba(33,33,33,0.25); }
+.cg-dex-slot svg { width: 32px; height: 32px; }
+.cg-dex-slot.empty svg { filter: brightness(0) opacity(0.18); }
+.cg-spark { position: absolute; width: 8px; height: 8px; border-radius: 50%; pointer-events: none; opacity: 0; }
+.cg-spark.go { animation: cgSpark 0.7s ease-out forwards; }
+@keyframes cgSpark { 0% { opacity: 1; transform: translate(0,0) scale(1); } 100% { opacity: 0; transform: var(--spark-end) scale(0.3); } }
+.cg-trail { position: absolute; width: 22px; height: 22px; border-radius: 50%; background: radial-gradient(circle, rgba(186,104,200,0.7) 0%, rgba(186,104,200,0) 70%); pointer-events: none; z-index: 6; animation: cgTrailFade 0.55s ease-out forwards; }
+@keyframes cgTrailFade { 0% { opacity: 0.85; transform: scale(1); } 100% { opacity: 0; transform: scale(0.3); } }
+</style>
+</head>
+<body>
+
+<div id="cg-frame">
+  <div id="cg-game">
+    <div class="cg-cloud" style="top:100px;left:30px;width:50px;height:18px;"></div>
+    <div class="cg-cloud" style="top:120px;left:60px;width:70px;height:22px;"></div>
+    <div class="cg-cloud" style="top:110px;right:40px;width:75px;height:24px;"></div>
+    <div class="cg-cloud" style="top:135px;right:80px;width:45px;height:16px;"></div>
+    <div id="cg-hud">
+      <div class="cg-hud-card">Caught: <span id="cg-caught">0</span>/5</div>
+      <div class="cg-hud-card">Balls <span id="cg-ball-icons"></span></div>
+    </div>
+    <div id="cg-shadow"></div>
+    <div id="cg-monster-wrap"><div id="cg-monster"></div></div>
+    <div id="cg-reticle"></div>
+    <div id="cg-message"></div>
+    <div id="cg-ball"></div>
+    <div id="cg-hint">flick to throw &nbsp;•&nbsp; spin in circles for a curveball</div>
+    <button id="cg-next" style="display:none;">Next encounter</button>
+    <div id="cg-pokedex"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const monsters = [
+    { id:'slimoid',  name:'Slimoid',  catchRate:0.85, svg:`<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><ellipse cx="50" cy="70" rx="38" ry="26" fill="#2E7D32"/><ellipse cx="50" cy="64" rx="36" ry="26" fill="#66BB6A"/><ellipse cx="42" cy="55" rx="14" ry="9" fill="#A5D6A7" opacity="0.7"/><circle cx="40" cy="60" r="6" fill="white"/><circle cx="60" cy="60" r="6" fill="white"/><circle cx="40" cy="62" r="3" fill="#1B5E20"/><circle cx="60" cy="62" r="3" fill="#1B5E20"/><path d="M44 73 Q50 78 56 73" stroke="#1B5E20" stroke-width="2" fill="none" stroke-linecap="round"/></svg>` },
+    { id:'pyroback', name:'Pyroback', catchRate:0.5,  svg:`<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><path d="M38 22 Q34 32 40 36 L43 26 L48 34 L52 22 L56 34 L60 26 L62 36 Q66 32 62 22 Q50 16 38 22" fill="#E64A19"/><path d="M44 26 Q42 31 46 34 L48 28 L50 33 L52 28 L54 34 Q58 31 56 26" fill="#FFC107"/><ellipse cx="50" cy="68" rx="30" ry="26" fill="#FF7043"/><ellipse cx="50" cy="74" rx="20" ry="16" fill="#FFCCBC"/><circle cx="40" cy="60" r="6" fill="white"/><circle cx="60" cy="60" r="6" fill="white"/><circle cx="41" cy="62" r="3" fill="#212121"/><circle cx="61" cy="62" r="3" fill="#212121"/><path d="M44 76 Q50 80 56 76" stroke="#BF360C" stroke-width="2" fill="none" stroke-linecap="round"/><ellipse cx="34" cy="70" rx="3" ry="2.5" fill="#FF8A65" opacity="0.6"/><ellipse cx="66" cy="70" rx="3" ry="2.5" fill="#FF8A65" opacity="0.6"/></svg>` },
+    { id:'aqualune', name:'Aqualune', catchRate:0.45, svg:`<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><path d="M50 16 Q24 50 24 72 Q24 92 50 92 Q76 92 76 72 Q76 50 50 16" fill="#01579B"/><path d="M50 24 Q30 53 30 72 Q30 86 50 86 Q70 86 70 72 Q70 53 50 24" fill="#29B6F6"/><path d="M50 32 Q40 55 40 70 Q40 78 50 78" fill="#81D4FA" opacity="0.7"/><ellipse cx="42" cy="62" rx="5" ry="7" fill="white"/><ellipse cx="58" cy="62" rx="5" ry="7" fill="white"/><circle cx="42" cy="64" r="2.5" fill="#01579B"/><circle cx="58" cy="64" r="2.5" fill="#01579B"/><circle cx="43" cy="62" r="0.9" fill="white"/><circle cx="59" cy="62" r="0.9" fill="white"/><path d="M44 76 Q50 79 56 76" stroke="#01579B" stroke-width="2" fill="none" stroke-linecap="round"/></svg>` },
+    { id:'volticat', name:'Volticat', catchRate:0.32, svg:`<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><polygon points="32,30 26,12 42,28" fill="#F9A825"/><polygon points="68,30 74,12 58,28" fill="#F9A825"/><polygon points="34,28 30,18 39,27" fill="#212121"/><polygon points="66,28 70,18 61,27" fill="#212121"/><ellipse cx="50" cy="62" rx="32" ry="30" fill="#FDD835"/><ellipse cx="50" cy="68" rx="22" ry="20" fill="#FFF59D"/><path d="M46 42 L52 42 L48 52 L54 52 L42 65 L48 56 L42 56 Z" fill="#F57F17"/><circle cx="40" cy="58" r="5" fill="#212121"/><circle cx="60" cy="58" r="5" fill="#212121"/><circle cx="41" cy="56" r="1.8" fill="white"/><circle cx="61" cy="56" r="1.8" fill="white"/><circle cx="33" cy="68" r="3.8" fill="#E65100"/><circle cx="67" cy="68" r="3.8" fill="#E65100"/><path d="M46 75 Q50 78 54 75" stroke="#212121" stroke-width="2" fill="none" stroke-linecap="round"/></svg>` },
+    { id:'umbra',    name:'Umbra',    catchRate:0.18, svg:`<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><path d="M50 18 Q22 28 22 60 L22 90 L30 82 L37 90 L44 82 L50 90 L56 82 L63 90 L70 82 L78 90 L78 60 Q78 28 50 18" fill="#311B92"/><path d="M50 22 Q26 32 26 60 L26 86 L31 80 L37 86 L43 80 L50 86 L57 80 L63 86 L69 80 L74 86 L74 60 Q74 32 50 22" fill="#5E35B1"/><ellipse cx="50" cy="42" rx="20" ry="6" fill="#7E57C2" opacity="0.5"/><circle cx="42" cy="52" r="6" fill="#E1BEE7"/><circle cx="58" cy="52" r="6" fill="#E1BEE7"/><circle cx="42" cy="52" r="2.8" fill="#311B92"/><circle cx="58" cy="52" r="2.8" fill="#311B92"/><path d="M40 64 Q50 60 60 64 Q56 71 50 71 Q44 71 40 64" fill="#311B92"/><path d="M44 65 L46 67 L48 65 L50 67 L52 65 L54 67 L56 65" stroke="white" stroke-width="0.8" fill="none"/></svg>` }
+  ];
+
+  const $ = id => document.getElementById(id);
+  const game = $('cg-game'), monsterEl = $('cg-monster'), monsterWrap = $('cg-monster-wrap');
+  const shadowEl = $('cg-shadow'), reticleEl = $('cg-reticle'), ballEl = $('cg-ball');
+  const messageEl = $('cg-message'), hintEl = $('cg-hint'), nextBtn = $('cg-next');
+  const caughtEl = $('cg-caught'), ballIconsEl = $('cg-ball-icons'), dexEl = $('cg-pokedex');
+  const CHARGE_THRESHOLD = Math.PI * 1.4;
+
+  const state = { caught: new Set(), current: null, balls: 3, active: false, scale: 1.0, dir: -1, rafId: null, drag: null, flying: false, everThrown: false };
+
+  const pickMonster = () => { const u = monsters.filter(m => !state.caught.has(m.id)); return (u.length ? u : monsters)[Math.floor(Math.random() * (u.length || monsters.length))]; };
+
+  function showMessage(text, duration) {
+    messageEl.textContent = text; messageEl.classList.add('show');
+    if (duration > 0) setTimeout(() => messageEl.classList.remove('show'), duration);
+  }
+
+  function pulse() {
+    if (!state.active) return;
+    state.scale += state.dir * 0.011;
+    if (state.scale <= 0.22) { state.scale = 0.22; state.dir = 1; }
+    if (state.scale >= 1.0)  { state.scale = 1.0;  state.dir = -1; }
+    reticleEl.style.transform = `scale(${state.scale})`;
+    reticleEl.style.borderColor = state.scale < 0.4 ? '#FFEB3B' : state.scale < 0.7 ? '#FFC107' : '#FF7043';
+    state.rafId = requestAnimationFrame(pulse);
+  }
+
+  const getQuality = s => s < 0.38 ? { label:'Excellent', bonus:1.85 } : s < 0.65 ? { label:'Great', bonus:1.45 } : { label:'Nice', bonus:1.1 };
+
+  function updateBallGlow(charge) {
+    if (charge <= 0.05) { ballEl.style.setProperty('--glow','none'); return; }
+    ballEl.style.setProperty('--glow', `0 0 0 ${charge*6}px rgba(186,104,200,${charge*0.42}), 0 0 ${charge*22}px rgba(186,104,200,${charge*0.7})`);
+  }
+
+  ballEl.addEventListener('pointerdown', e => {
+    if (!state.active || state.flying || state.drag) return;
+    e.preventDefault();
+    ballEl.setPointerCapture(e.pointerId);
+    ballEl.style.transition = 'none';
+    hintEl.classList.add('hide');
+    state.drag = { pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, samples: [{ x: e.clientX, y: e.clientY, t: performance.now() }], lastDX: 0, lastDY: 0, cumAngle: 0, lastAngle: null, charged: false };
+  });
+
+  ballEl.addEventListener('pointermove', e => {
+    if (!state.drag || e.pointerId !== state.drag.pointerId) return;
+    const dx = e.clientX - state.drag.startX, dy = e.clientY - state.drag.startY;
+    state.drag.lastDX = dx; state.drag.lastDY = dy;
+    if (Math.hypot(dx, dy) > 18) {
+      const a = Math.atan2(dy, dx);
+      if (state.drag.lastAngle !== null) {
+        let d = a - state.drag.lastAngle;
+        if (d >  Math.PI) d -= 2 * Math.PI;
+        if (d < -Math.PI) d += 2 * Math.PI;
+        state.drag.cumAngle += d;
+      }
+      state.drag.lastAngle = a;
+    } else { state.drag.lastAngle = null; }
+    const charge = Math.min(1, Math.abs(state.drag.cumAngle) / CHARGE_THRESHOLD);
+    updateBallGlow(charge);
+    if (charge >= 1 && !state.drag.charged) { state.drag.charged = true;  ballEl.classList.add('charged'); }
+    if (charge <  1 &&  state.drag.charged) { state.drag.charged = false; ballEl.classList.remove('charged'); }
+    ballEl.style.transform = `translate(${dx}px,${dy}px) rotate(${state.drag.cumAngle * 180 / Math.PI}deg)`;
+    state.drag.samples.push({ x: e.clientX, y: e.clientY, t: performance.now() });
+    const cutoff = performance.now() - 100;
+    while (state.drag.samples.length > 2 && state.drag.samples[0].t < cutoff) state.drag.samples.shift();
+  });
+
+  function endDrag(e) {
+    if (!state.drag || e.pointerId !== state.drag.pointerId) return;
+    const drag = state.drag; state.drag = null;
+    ballEl.classList.remove('charged');
+    let vx = 0, vy = 0;
+    if (drag.samples.length >= 2) {
+      const last = drag.samples[drag.samples.length - 1], first = drag.samples[0];
+      const dt = (last.t - first.t) / 1000;
+      if (dt > 0.015) { vx = (last.x - first.x) / dt; vy = (last.y - first.y) / dt; }
+    }
+    if (vy > -650) { updateBallGlow(0); returnBall(); return; }
+    state.active = false; cancelAnimationFrame(state.rafId);
+    reticleEl.style.opacity = '0'; state.everThrown = true;
+    launchProjectile(drag.lastDX, drag.lastDY, vx, vy, state.scale, drag.charged, drag.cumAngle > 0 ? 1 : -1, drag.cumAngle * 180 / Math.PI);
+  }
+  ballEl.addEventListener('pointerup', endDrag);
+  ballEl.addEventListener('pointercancel', endDrag);
+
+  function returnBall() {
+    ballEl.style.transition = 'transform 0.4s cubic-bezier(.4,0,.6,1)';
+    ballEl.style.transform = 'translate(0,0) rotate(0deg)';
+    setTimeout(() => { ballEl.style.transition = ''; if (state.active && !state.everThrown) hintEl.classList.remove('hide'); }, 400);
+  }
+
+  function spawnTrail() {
+    const br = ballEl.getBoundingClientRect(), gr = game.getBoundingClientRect();
+    const t = document.createElement('div'); t.className = 'cg-trail';
+    t.style.left = (br.left - gr.left + br.width/2 - 11) + 'px';
+    t.style.top  = (br.top  - gr.top  + br.height/2 - 11) + 'px';
+    game.appendChild(t); setTimeout(() => t.remove(), 600);
+  }
+
+  function launchProjectile(initX, initY, vx, vy, capturedScale, isCurveball, spin, startRotation) {
+    state.flying = true;
+    const gravity   = 3400;
+    const hDrag     = 5.5;   /* lateral air resistance — bleeds off sideways speed each frame */
+    const curveAccel = isCurveball ? spin * 900 : 0;
+    const spinSpeed  = isCurveball ? spin * 1500 : 720;
+    let velX = Math.max(-700, Math.min(700, vx * 0.6));  /* capped + dampened launch */
+    let velY = Math.max(-1800, vy * 0.72);
+    let posX = initX, posY = initY, rotation = startRotation;
+    let lastTs = null, lastTrail = 0, resolved = false;
+
+    function step(ts) {
+      if (!lastTs) { lastTs = ts; lastTrail = ts; requestAnimationFrame(step); return; }
+      const dt = Math.min(0.033, (ts - lastTs) / 1000); lastTs = ts;
+
+      velX *= Math.max(0, 1 - hDrag * dt);   /* apply lateral drag */
+      velX += curveAccel * dt;
+      posX += velX * dt;
+      posY += velY * dt;
+      velY += gravity * dt;
+      rotation += spinSpeed * dt;
+
+      /* Hard horizontal clamp — ball stays inside game bounds */
+      const halfW = game.offsetWidth / 2 - 22;
+      if (posX >  halfW) { posX =  halfW; velX = 0; }
+      if (posX < -halfW) { posX = -halfW; velX = 0; }
+
+      ballEl.style.transform = `translate(${posX}px,${posY}px) rotate(${rotation}deg)`;
+      if (isCurveball && ts - lastTrail > 28) { spawnTrail(); lastTrail = ts; }
+
+      const br = ballEl.getBoundingClientRect(), mr = monsterWrap.getBoundingClientRect();
+      const dist = Math.hypot((br.left+br.width/2)-(mr.left+mr.width/2), (br.top+br.height/2)-(mr.top+mr.height/2));
+      if (!resolved && dist < 55) { resolved = true; handleHit(capturedScale, isCurveball); return; }
+
+      const gr = game.getBoundingClientRect();
+      if (!resolved && (br.top > gr.bottom + 40 || br.bottom < gr.top - 80)) { resolved = true; handleMiss(); return; }
+      if (!resolved) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  function handleMiss() {
+    state.flying = false; showMessage('Missed!', 700);
+    setTimeout(() => {
+      ballEl.style.transition = 'none'; ballEl.style.opacity = '0'; ballEl.style.transform = 'translate(0,0) rotate(0deg)'; updateBallGlow(0);
+      requestAnimationFrame(() => {
+        ballEl.style.transition = 'opacity 0.3s'; ballEl.style.opacity = '1';
+        if (!state.active && state.balls > 0) { state.active = true; state.scale = 1.0; state.dir = -1; reticleEl.style.opacity = '1'; pulse(); }
+      });
+    }, 300);
+  }
+
+  function handleHit(capturedScale, isCurveball) {
+    const q = getQuality(capturedScale);
+    const willCatch = Math.random() < Math.min(0.95, state.current.catchRate * q.bonus * (isCurveball ? 1.7 : 1));
+    showMessage(isCurveball ? `Curveball ${q.label}!` : `${q.label} throw!`, 1100);
+    monsterWrap.style.transition = 'opacity 0.2s, transform 0.3s';
+    monsterWrap.style.opacity = '0'; monsterWrap.style.transform = 'translate(-50%,-50%) scale(0.3)';
+    shadowEl.style.opacity = '0'; updateBallGlow(0);
+    const mr = monsterWrap.getBoundingClientRect(), gr = game.getBoundingClientRect();
+    const lx = (mr.left + mr.width/2) - (gr.left + gr.width/2);
+    const ly = -((gr.bottom - (mr.top + mr.height/2)) - parseFloat(getComputedStyle(ballEl).bottom));
+    ballEl.style.transition = 'transform 0.2s ease-out';
+    ballEl.style.transform  = `translate(${lx}px,${ly}px) rotate(0deg)`;
+    setTimeout(() => wiggle(willCatch, lx, ly), 350);
+  }
+
+  function wiggle(willCatch, lx, ly) {
+    const count = willCatch ? 3 : (1 + Math.floor(Math.random() * 2)); let i = 0;
+    (function next() {
+      if (i >= count) { finish(willCatch, lx, ly); return; }
+      const dir = i % 2 === 0 ? -1 : 1;
+      ballEl.style.transition = 'transform 0.32s ease-in-out';
+      ballEl.style.transform  = `translate(${lx}px,${ly}px) rotate(${dir*28}deg)`;
+      setTimeout(() => { ballEl.style.transform = `translate(${lx}px,${ly}px) rotate(0deg)`; setTimeout(() => { i++; next(); }, 180); }, 320);
+    })();
+  }
+
+  function spawnSparkles() {
+    const mr = monsterWrap.getBoundingClientRect(), gr = game.getBoundingClientRect();
+    const cx = mr.left - gr.left + mr.width/2, cy = mr.top - gr.top + mr.height/2;
+    for (let i = 0; i < 14; i++) {
+      const a = (i/14)*Math.PI*2, d = 45 + Math.random()*25;
+      const sp = document.createElement('div'); sp.className = 'cg-spark';
+      sp.style.left = (cx-4)+'px'; sp.style.top = (cy-4)+'px';
+      sp.style.setProperty('--spark-end', `translate(${Math.cos(a)*d}px,${Math.sin(a)*d}px)`);
+      sp.style.background = ['#FFEB3B','#FFC107','#FFFFFF'][i%3];
+      game.appendChild(sp); requestAnimationFrame(() => sp.classList.add('go'));
+      setTimeout(() => sp.remove(), 800);
+    }
+  }
+
+  function finish(success, lx, ly) {
+    state.flying = false;
+    if (success) {
+      state.caught.add(state.current.id); updateHUD(); updatePokedex(); spawnSparkles();
+      showMessage(`Gotcha! ${state.current.name}!`, 0);
+      ballEl.style.display = 'none'; nextBtn.style.display = '';
+      if (state.caught.size >= monsters.length) nextBtn.textContent = 'Play again';
+    } else {
+      state.balls--; updateHUD();
+      ballEl.style.transition = 'transform 0.3s, opacity 0.3s';
+      ballEl.style.transform = `translate(${lx}px,${ly}px) rotate(0deg) scale(1.5)`; ballEl.style.opacity = '0';
+      setTimeout(() => {
+        ballEl.style.transition = 'none'; ballEl.style.opacity = '1'; ballEl.style.transform = 'translate(0,0) rotate(0deg)';
+        monsterWrap.style.transition = 'opacity 0.3s, transform 0.4s cubic-bezier(.3,1.6,.6,1)';
+        monsterWrap.style.opacity = '1'; monsterWrap.style.transform = 'translate(-50%,-50%) scale(1)';
+        shadowEl.style.opacity = '1'; showMessage(`${state.current.name} broke free!`, 1300);
+      }, 300);
+      if (state.balls > 0) {
+        setTimeout(() => { state.active = true; state.scale = 1.0; state.dir = -1; reticleEl.style.opacity = '1'; monsterEl.classList.add('idle'); pulse(); }, 1500);
+      } else {
+        setTimeout(() => {
+          showMessage(`${state.current.name} escaped!`, 0); monsterEl.classList.remove('idle');
+          monsterWrap.style.transition = 'opacity 0.6s, transform 0.6s';
+          monsterWrap.style.opacity = '0'; monsterWrap.style.transform = 'translate(-50%,-50%) translateY(-30px) scale(0.5)';
+          shadowEl.style.opacity = '0'; ballEl.style.display = 'none'; nextBtn.style.display = '';
+        }, 1600);
+      }
+    }
+  }
+
+  function updateHUD() {
+    caughtEl.textContent = state.caught.size;
+    ballIconsEl.innerHTML = Array.from({length:3}, (_,i) => `<span class="cg-ball-icon ${i >= state.balls ? 'cg-ball-used' : ''}"></span>`).join('');
+  }
+
+  function updatePokedex() {
+    dexEl.innerHTML = monsters.map(m => `<div class="cg-dex-slot ${state.caught.has(m.id) ? '' : 'empty'}" title="${state.caught.has(m.id) ? m.name : 'Unknown'}">${m.svg}</div>`).join('');
+  }
+
+  function startEncounter() {
+    if (state.caught.size >= monsters.length) { state.caught.clear(); updatePokedex(); nextBtn.textContent = 'Next encounter'; }
+    state.current = pickMonster(); state.balls = 3; state.scale = 1.0; state.dir = -1; state.active = false; state.flying = false;
+    monsterWrap.style.transition = ''; monsterWrap.style.opacity = '1'; monsterWrap.style.transform = 'translate(-50%,-50%) scale(1)';
+    shadowEl.style.opacity = '1'; ballEl.style.display = 'block'; ballEl.style.transition = 'none';
+    ballEl.style.transform = 'translate(0,0) rotate(0deg)'; ballEl.style.opacity = '1';
+    updateBallGlow(0); reticleEl.style.opacity = '0'; reticleEl.style.transform = 'scale(1)';
+    nextBtn.style.display = 'none';
+    if (!state.everThrown) hintEl.classList.remove('hide');
+    monsterEl.innerHTML = state.current.svg; monsterEl.classList.remove('idle');
+    void monsterEl.offsetWidth; monsterEl.classList.add('bounce');
+    showMessage(`A wild ${state.current.name} appeared!`, 1400); updateHUD();
+    setTimeout(() => { monsterEl.classList.remove('bounce'); monsterEl.classList.add('idle'); reticleEl.style.opacity = '1'; state.active = true; pulse(); }, 600);
+  }
+
+  nextBtn.addEventListener('click', startEncounter);
+  updatePokedex(); startEncounter();
+})();
+</script>
+</body>
+</html>

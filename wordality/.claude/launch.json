@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "wordality",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "C:/Users/AA/dev/wordality", "-l", "3456", "--no-clipboard"],
+      "port": 3456
+    }
+  ]
+}
