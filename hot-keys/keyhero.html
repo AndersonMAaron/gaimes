@@ -840,7 +840,13 @@ document.addEventListener('keydown', e => {
 
   if (gameState !== 'PLAYING') return;
 
-  const key = e.key.toLowerCase();
+  // Shift+number fires a symbol key (!, @, #…). Map back to the base digit for Shifty mode.
+  const SHIFT_SYMBOLS = {'!':'1','@':'2','#':'3','$':'4','%':'5','^':'6','&':'7','*':'8','(':'9',')':'0'};
+  const rawKey = e.key.toLowerCase();
+  const key = (mode === 'shifty' && e.shiftKey && SHIFT_SYMBOLS[e.key])
+    ? SHIFT_SYMBOLS[e.key]
+    : rawKey;
+
   if (!/^[a-z0-9]$/.test(key)) return;
   e.preventDefault();
 
@@ -851,7 +857,6 @@ document.addEventListener('keydown', e => {
   }
   else if (mode === 'shifty') {
     if (e.ctrlKey || e.altKey) return; // ignore Ctrl/Alt in Shifty
-    if (!/^[a-z]$/.test(key)) return;
     processHitFlat(key, e.shiftKey);
   }
   else { // hotkeys
