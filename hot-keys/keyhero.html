@@ -143,35 +143,30 @@
     .mode-card[data-mode="hotkeys"].active { border-color: #ff5599; background: rgba(255,85,153,0.08); }
     .mode-card[data-mode="hotkeys"].active .mc-name { color: #ff5599; }
 
-    /* Hotness selector */
-    .hotness-grid {
+    /* Difficulty selector */
+    .diff-grid {
       display: grid;
-      grid-template-columns: repeat(10, 1fr);
-      gap: 5px;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
     }
 
-    .heat-btn {
-      aspect-ratio: 1;
-      background: rgba(255,255,255,0.04);
+    .diff-btn {
+      padding: 12px 6px 10px;
+      background: rgba(255,255,255,0.03);
       border: 1px solid rgba(255,255,255,0.09);
-      border-radius: 7px;
+      border-radius: 10px;
       color: rgba(255,255,255,0.35);
       cursor: pointer;
-      font-size: 0.78rem;
-      font-weight: 700;
       text-align: center;
-      line-height: 1;
-      padding: 6px 0;
       user-select: none;
       transition: all 0.12s;
     }
-    .heat-btn:hover { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.8); }
-    .heat-btn.active {
-      background: linear-gradient(135deg, #ff6622, #ff2266);
-      border-color: transparent;
-      color: #fff;
-      box-shadow: 0 0 10px rgba(255,80,80,0.4);
-    }
+    .diff-btn:hover { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.75); }
+    .diff-btn .diff-name { font-size: 0.82rem; font-weight: 800; letter-spacing: 0.04em; }
+    .diff-btn .diff-desc { font-size: 0.62rem; color: rgba(255,255,255,0.32); margin-top: 3px; line-height: 1.3; }
+    .diff-btn.active .diff-name { color: var(--diff-color, #fff); }
+    .diff-btn.active { border-color: var(--diff-color, #fff); background: color-mix(in srgb, var(--diff-color, #fff) 10%, transparent); }
+    .diff-btn.kb-focus { box-shadow: 0 0 0 2px var(--diff-color, rgba(255,255,255,0.5)); }
 
     #startBtn {
       width: 100%;
@@ -193,7 +188,6 @@
 
     /* ── Keyboard focus indicators ──────────────────────────── */
     .mode-card.kb-focus  { box-shadow: 0 0 0 2px rgba(255,255,255,0.65); }
-    .heat-btn.kb-focus   { box-shadow: 0 0 0 2px #ff8844, 0 0 8px rgba(255,136,68,0.3); }
     #startBtn.kb-focus   { box-shadow: 0 4px 22px rgba(85,153,255,0.28), 0 0 0 2px rgba(255,255,255,0.7) !important; }
     .pbtn.kb-focus       { box-shadow: 0 0 0 2px rgba(255,255,255,0.75) !important; }
     .res-btns button.kb-focus { box-shadow: 0 0 0 2px rgba(255,255,255,0.65) !important; }
@@ -455,9 +449,9 @@
     </div>
   </div>
 
-  <div class="form-group" id="fgHotness">
-    <label class="form-label">Hotness <span style="color:rgba(255,255,255,0.28);font-size:0.62rem;text-transform:none;letter-spacing:0;font-weight:400;margin-left:6px">The difficulty! Higher number = more keys</span></label>
-    <div class="hotness-grid" id="hotnessGrid"></div>
+  <div class="form-group" id="fgDifficulty">
+    <label class="form-label">Difficulty</label>
+    <div class="diff-grid" id="diffGrid"></div>
   </div>
 
   <div class="form-group" id="fgNumPct">
@@ -590,46 +584,71 @@ const CTRL_BLACKLIST = new Set([
   'q','b','e','g','i','1','2','3','4','5','6','7','8','9',
 ]);
 
-// ── Hotness levels 1-10 (index = hotness - 1) ─────────────
-// sub  = beat subdivision (lower = more notes)
-// den  = density (chance a grid slot gets a note)
-// hitM = hit-window multiplier (higher = more forgiving)
-// sub uses clean musical fractions (4→0.625); den/hitM are linear.
-const HOTNESS = [
-  { sub:4.00, den:0.55, hitM:2.2  },  // 1
-  { sub:3.00, den:0.58, hitM:2.0  },  // 2
-  { sub:2.00, den:0.62, hitM:1.7  },  // 3
-  { sub:1.50, den:0.65, hitM:1.5  },  // 4
-  { sub:1.00, den:0.68, hitM:1.3  },  // 5
-  { sub:0.75, den:0.70, hitM:1.1  },  // 6
-  { sub:0.50, den:0.72, hitM:0.90 },  // 7
-  { sub:0.33, den:0.73, hitM:0.75 },  // 8
-  { sub:0.25, den:0.75, hitM:0.62 },  // 9
-  { sub:0.17, den:0.77, hitM:0.50 },  // 10
-];
-
-// ── HotKeyS lane weights per hotness tier ─────────────────
-// As hotness increases, spread shifts into modifier lanes
-const LANE_WEIGHTS = [
-  [0.80, 0.12, 0.06, 0.02],  // 1
-  [0.72, 0.16, 0.08, 0.04],  // 2
-  [0.62, 0.20, 0.12, 0.06],  // 3
-  [0.52, 0.24, 0.16, 0.08],  // 4
-  [0.44, 0.28, 0.18, 0.10],  // 5
-  [0.36, 0.28, 0.22, 0.14],  // 6
-  [0.30, 0.28, 0.24, 0.18],  // 7
-  [0.28, 0.28, 0.24, 0.20],  // 8
-  [0.26, 0.26, 0.25, 0.23],  // 9
-  [0.25, 0.25, 0.25, 0.25],  // 10
-];
+// ── Difficulty definitions ─────────────────────────────────
+// Each difficulty drives chain-based note generation.
+// chains: weighted list of { sub (beat fraction), minLen, maxLen }
+// restBeats: [min, max] quarter-note beats of silence between chains
+// hitM: hit-window multiplier (higher = more forgiving)
+// laneWeights: HotKeyS modifier-lane distribution [none,shift,ctrl,alt]
+// shiftPct: fraction of Shifty-mode notes that require Shift (0–1)
+// hitM is uniform across all difficulties (Hard's window is the standard).
+const DIFFICULTY_DEFS = {
+  easy: {
+    label: 'Easy',   color: '#55ff99',
+    hitM: 1.0,
+    shiftPct: 0.25,
+    laneWeights: [0.80, 0.12, 0.06, 0.02],
+    chains: [
+      { sub: 4.0, minLen: 2, maxLen: 4, weight: 1.0 },   // whole notes only
+    ],
+    restBeats: [3, 5],
+  },
+  medium: {
+    label: 'Medium', color: '#5599ff',
+    hitM: 1.0,
+    shiftPct: 0.35,
+    laneWeights: [0.60, 0.24, 0.12, 0.04],
+    chains: [
+      { sub: 4.0, minLen: 2, maxLen: 3, weight: 0.20 },   // whole notes
+      { sub: 2.0, minLen: 4, maxLen: 7, weight: 0.55 },   // half notes (longer)
+      { sub: 1.0, minLen: 3, maxLen: 5, weight: 0.25 },   // quarter notes (new)
+    ],
+    restBeats: [2, 3],
+  },
+  hard: {
+    label: 'Hard',   color: '#ffaa44',
+    hitM: 1.0,
+    shiftPct: 0.40,
+    laneWeights: [0.44, 0.28, 0.18, 0.10],
+    chains: [
+      { sub: 1.0, minLen: 6, maxLen: 10, weight: 0.50 },  // quarter notes (longer)
+      { sub: 2.0, minLen: 4, maxLen:  7, weight: 0.30 },  // half notes (longer)
+      { sub: 4.0, minLen: 1, maxLen:  2, weight: 0.20 },  // whole-note breathers
+    ],
+    restBeats: [1, 2],
+  },
+  expert: {
+    label: 'Expert', color: '#ff5577',
+    hitM: 1.0,
+    shiftPct: 0.45,
+    laneWeights: [0.28, 0.28, 0.24, 0.20],
+    chains: [
+      { sub: 0.25, minLen: 4, maxLen: 8, weight: 0.35 },  // 16th notes
+      { sub: 0.50, minLen: 4, maxLen: 8, weight: 0.35 },  // 8th notes
+      { sub: 1.00, minLen: 2, maxLen: 5, weight: 0.30 },  // quarter notes
+    ],
+    restBeats: [0.5, 2],
+  },
+};
+const DIFF_KEYS = ['easy','medium','hard','expert'];
 
 // ═══════════════════════════════════════════════════════════
 //  GAME STATE
 // ═══════════════════════════════════════════════════════════
 
 let gameState = 'SETUP';
-let mode      = 'straight'; // 'straight' | 'shifty' | 'hotkeys'
-let hotness   = 5;          // 1-10
+let mode       = 'straight'; // 'straight' | 'shifty' | 'hotkeys'
+let difficulty = 'medium';   // 'easy' | 'medium' | 'hard' | 'expert'
 let notes        = [];
 let score        = 0;
 let combo        = 0;
@@ -638,12 +657,13 @@ let perfects = 0, goods = 0, oks = 0, misses = 0;
 let hitFx        = [];
 let particles    = [];
 let laneFlash    = [0,0,0,0];
+let keyPressMap  = {}; // char → performance.now() of last press
 let heldMods     = { shift:false, ctrl:false, alt:false };
 let offbeat      = false;
 let audioOffset  = 0; // ms — positive shifts hit window later (compensates early-audio latency)
 
 // ── Keyboard navigation state ────────────────────────────────
-// Sections: 0=music 1=bpm 2=offbeat 3=offset 4=mode 5=hotness 6=numpct 7=start
+// Sections: 0=music 1=bpm 2=offbeat 3=offset 4=mode 5=difficulty 6=numpct 7=start
 let menuSection    = 0;
 let menuModeIdx    = 0;
 let pauseFocusIdx  = 0;
@@ -671,7 +691,7 @@ function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
 function hitWindows() {
   const beatMs = 60000 / bpm;
-  const m = HOTNESS[hotness - 1].hitM;
+  const m = DIFFICULTY_DEFS[difficulty].hitM;
   return {
     perfect: clamp(beatMs * 0.11 * m, 16, 95),
     good:    clamp(beatMs * 0.22 * m, 32, 160),
@@ -680,9 +700,9 @@ function hitWindows() {
 }
 
 function multiplier() {
-  if (combo >= 25) return 4;
-  if (combo >= 13) return 3;
-  if (combo >= 5)  return 2;
+  if (combo >= 12) return 4;
+  if (combo >= 6)  return 3;
+  if (combo >= 3)  return 2;
   return 1;
 }
 
@@ -705,9 +725,8 @@ function flatNoteX(char, y) {
 // ═══════════════════════════════════════════════════════════
 
 function generateNotes() {
-  const h      = HOTNESS[hotness - 1];
+  const def    = DIFFICULTY_DEFS[difficulty];
   const beatMs = 60000 / bpm;
-  const stepMs = beatMs * h.sub;
   const leadIn = Math.max(2200, TRAVEL_MS * 1.05);
   const result = [];
   let id = 0;
@@ -718,42 +737,48 @@ function generateNotes() {
       : 'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random() * 26)];
   }
 
-  // HotKeyS lane picker
-  const lw = LANE_WEIGHTS[hotness - 1];
   function pickLane() {
+    const lw = def.laneWeights;
     const r = Math.random(); let c = 0;
     for (let i = 0; i < LANE_COUNT; i++) { c += lw[i]; if (r < c) return i; }
     return 0;
   }
 
-  let lastLane = -1, runLen = 0;
+  function pickChain() {
+    const total = def.chains.reduce((s, c) => s + c.weight, 0);
+    let r = Math.random() * total;
+    for (const ch of def.chains) { r -= ch.weight; if (r <= 0) return ch; }
+    return def.chains[def.chains.length - 1];
+  }
 
-  const offbeatShift = offbeat ? (beatMs / 2) : 0;
+  let t = leadIn + (offbeat ? beatMs / 2 : 0);
 
-  for (let t = leadIn + offbeatShift; t < songDuration - 1800; t += stepMs) {
-    if (Math.random() >= h.den) continue;
+  while (t < songDuration - 2000) {
+    const chain  = pickChain();
+    const stepMs = beatMs * chain.sub;
+    const len    = chain.minLen + Math.floor(Math.random() * (chain.maxLen - chain.minLen + 1));
 
-    if (mode === 'straight') {
-      result.push({ id:id++, char:pickChar(), hitTime:t, state:'active', needsShift:false, lane:0 });
-    }
-    else if (mode === 'shifty') {
-      const needsShift = Math.random() < 0.40;
-      result.push({ id:id++, char:pickChar(), hitTime:t, state:'active', needsShift, lane:0 });
-    }
-    else { // hotkeys
-      let lane;
-      if (runLen > 0 && Math.random() < 0.40) { lane = lastLane; runLen--; }
-      else { lane = pickLane(); runLen = Math.random() < 0.22 ? Math.floor(Math.random()*3)+1 : 0; }
-      lastLane = lane;
+    // In HotKeyS, half the time hold the same lane for the whole chain (feels like a chord riff)
+    const chainLane = (mode === 'hotkeys' && Math.random() < 0.5) ? pickLane() : -1;
+
+    for (let i = 0; i < len && t < songDuration - 2000; i++) {
+      const lane       = mode === 'hotkeys' ? (chainLane >= 0 ? chainLane : pickLane()) : 0;
+      const needsShift = mode === 'shifty'  ? Math.random() < def.shiftPct : false;
 
       let char, tries = 0;
       do { char = pickChar(); tries++; }
       while (lane === 2 && CTRL_BLACKLIST.has(char) && tries < 20);
-      if (lane === 2 && CTRL_BLACKLIST.has(char)) lane = 0;
+      if (lane === 2 && CTRL_BLACKLIST.has(char)) continue;
 
-      result.push({ id:id++, char, lane, hitTime:t, state:'active', needsShift:false });
+      result.push({ id: id++, char, lane, hitTime: t, state: 'active', needsShift });
+      t += stepMs;
     }
+
+    // Deliberate rest between chains — gives the "riff then breathe" feel
+    const [minR, maxR] = def.restBeats;
+    t += beatMs * (minR + Math.random() * (maxR - minR));
   }
+
   return result;
 }
 
@@ -789,7 +814,7 @@ document.addEventListener('keydown', e => {
         if (menuSection === 1) { bpm = Math.max(40, bpm - 1); document.getElementById('bpmInput').value = bpm; }
         if (menuSection === 3) { audioOffset = Math.max(-150, audioOffset - 5); document.getElementById('audioOffsetInput').value = audioOffset; }
         if (menuSection === 4) applyMenuMode((menuModeIdx + 2) % 3);
-        if (menuSection === 5) applyHotness(Math.max(1, hotness - 1));
+        if (menuSection === 5) applyDifficulty(DIFF_KEYS[(DIFF_KEYS.indexOf(difficulty) + 3) % 4]);
         if (menuSection === 6) { numericPct = Math.max(0, numericPct - 1); document.getElementById('numPctInput').value = numericPct; }
         return;
       }
@@ -798,7 +823,7 @@ document.addEventListener('keydown', e => {
         if (menuSection === 1) { bpm = Math.min(300, bpm + 1); document.getElementById('bpmInput').value = bpm; }
         if (menuSection === 3) { audioOffset = Math.min(150, audioOffset + 5); document.getElementById('audioOffsetInput').value = audioOffset; }
         if (menuSection === 4) applyMenuMode((menuModeIdx + 1) % 3);
-        if (menuSection === 5) applyHotness(Math.min(10, hotness + 1));
+        if (menuSection === 5) applyDifficulty(DIFF_KEYS[(DIFF_KEYS.indexOf(difficulty) + 1) % 4]);
         if (menuSection === 6) { numericPct = Math.min(100, numericPct + 1); document.getElementById('numPctInput').value = numericPct; }
         return;
       }
@@ -849,6 +874,8 @@ document.addEventListener('keydown', e => {
 
   if (!/^[a-z0-9]$/.test(key)) return;
   e.preventDefault();
+
+  keyPressMap[key] = performance.now();
 
   if (mode === 'straight') {
     // No modifier required — but don't match if a modifier is held to avoid accidental triggers
@@ -1171,7 +1198,7 @@ function drawHwyHitZone() {
   ctx.beginPath(); ctx.moveTo(bb.sx,HIT_ZONE_Y); ctx.lineTo(bb.sx+bb.w,HIT_ZONE_Y); ctx.stroke();
   ctx.restore();
 
-  const btnH=84, btnY=HIT_ZONE_Y+5, pad=6;
+  const btnH=84, btnY=HIT_ZONE_Y - Math.round(btnH/2), pad=6;
   for (let i=0; i<LANE_COUNT; i++) {
     const bx=bb.sx+i*bb.lw, lane=LANES[i], fl=laneFlash[i];
     const isHeld=(i===1&&heldMods.shift)||(i===2&&heldMods.ctrl)||(i===3&&heldMods.alt);
@@ -1385,7 +1412,7 @@ function drawNextNote() {
   const boxW = modLabel ? 120 : 82;
   const boxH = modLabel ? 54 : 44;
   const boxX = cx - boxW / 2;
-  const boxY = isHotkeys ? HIT_ZONE_Y + 5 + 84 + 8 : FL_HIT_Y + 16;
+  const boxY = isHotkeys ? HIT_ZONE_Y + Math.round(84/2) + 8 : FL_HIT_Y + 16;
   const r = 10;
 
   ctx.save();
@@ -1537,8 +1564,9 @@ function drawMultBar() {
 // ─── Keyboard glow visualization ────────────────────────────
 
 function drawKeyboard(nowMs) {
-  // Bottom of upper-left quadrant: keyboard bottom anchored near mid-highway
-  const kbTop = Math.round(HWY_TOP + (HIT_ZONE_Y - HWY_TOP) * 0.62) - 4 * KB_STEP_Y;
+  // Bottom of upper-left quadrant: anchor bottom edge ~62% down the highway height
+  const kbBottom = Math.round(HWY_TOP + (HIT_ZONE_Y - HWY_TOP) * 0.62);
+  const kbTop    = kbBottom - 4 * KB_STEP_Y;
 
   // Build glow map: char → { glow: 0–1, color }
   // For each active note, compute how bright its key should be.
@@ -1579,43 +1607,51 @@ function drawKeyboard(nowMs) {
     row.chars.forEach((ch, ci) => {
       const kx  = rowX + ci * KB_STEP_X;
       const ky  = rowY;
-      const kx2 = kx + KB_KEY_W;
-      const ky2 = ky + KB_KEY_H;
       const gl  = glowMap[ch];
       const glow  = gl ? gl.glow  : 0;
       const color = gl ? gl.color : '#ffffff';
       const r = 6;
 
+      // Key-press flash: bright green, decays over 180 ms
+      const pressAge  = keyPressMap[ch] != null ? performance.now() - keyPressMap[ch] : Infinity;
+      const pressGlow = clamp(1 - pressAge / 180, 0, 1);
+      const PRESS_COL = '#55ff99';
+
+      // Press flash takes priority over the approach glow
+      const activeColor = pressGlow > 0 ? PRESS_COL : color;
+      const activeGlow  = pressGlow > 0 ? pressGlow : glow;
+      const isActive    = activeGlow > 0;
+
       ctx.shadowBlur = 0;
 
-      // Key fill — nearly invisible at rest, tinted when active
-      ctx.fillStyle = gl
-        ? color + Math.round((0.04 + glow * 0.20) * 255).toString(16).padStart(2,'0')
+      // Key fill
+      ctx.fillStyle = isActive
+        ? activeColor + Math.round((0.04 + activeGlow * 0.28) * 255).toString(16).padStart(2,'0')
         : 'rgba(255,255,255,0.03)';
       rrect(ctx, kx, ky, KB_KEY_W, KB_KEY_H, r); ctx.fill();
 
-      // Outer glow pass (drawn first so border sits on top)
-      if (glow > 0.05) {
-        ctx.shadowColor = color;
-        ctx.shadowBlur  = 6 + glow * 22;
-        ctx.strokeStyle = color + Math.round(glow * 0.55 * 255).toString(16).padStart(2,'0');
+      // Outer glow
+      if (activeGlow > 0.05) {
+        ctx.shadowColor = activeColor;
+        ctx.shadowBlur  = 6 + activeGlow * 22;
+        ctx.strokeStyle = activeColor + Math.round(activeGlow * 0.55 * 255).toString(16).padStart(2,'0');
         ctx.lineWidth   = 1;
         rrect(ctx, kx, ky, KB_KEY_W, KB_KEY_H, r); ctx.stroke();
         ctx.shadowBlur = 0;
       }
 
       // Border
-      ctx.strokeStyle = gl
-        ? color + Math.round((0.14 + glow * 0.66) * 255).toString(16).padStart(2,'0')
+      ctx.strokeStyle = isActive
+        ? activeColor + Math.round((0.14 + activeGlow * 0.66) * 255).toString(16).padStart(2,'0')
         : 'rgba(255,255,255,0.07)';
-      ctx.lineWidth = gl ? 1 + glow * 0.8 : 1;
+      ctx.lineWidth = isActive ? 1 + activeGlow * 0.8 : 1;
       rrect(ctx, kx, ky, KB_KEY_W, KB_KEY_H, r); ctx.stroke();
 
       // Key label
-      ctx.shadowColor = gl ? color : 'transparent';
-      ctx.shadowBlur  = glow > 0.05 ? glow * 10 : 0;
-      ctx.fillStyle   = gl
-        ? color + Math.round((0.25 + glow * 0.75) * 255).toString(16).padStart(2,'0')
+      ctx.shadowColor = isActive ? activeColor : 'transparent';
+      ctx.shadowBlur  = activeGlow > 0.05 ? activeGlow * 10 : 0;
+      ctx.fillStyle   = isActive
+        ? activeColor + Math.round((0.25 + activeGlow * 0.75) * 255).toString(16).padStart(2,'0')
         : 'rgba(255,255,255,0.16)';
       ctx.font = `bold 13px 'Consolas',monospace`;
       ctx.fillText(ch.toUpperCase(), kx + KB_KEY_W / 2, ky + KB_KEY_H / 2);
@@ -1683,7 +1719,7 @@ function drawHUD(nowMs) {
 
   const modeName = mode==='straight'?'Straight Keys':mode==='shifty'?'Shifty Keys':'HotKeyS';
   ctx.font='10px "Segoe UI"'; ctx.fillStyle='rgba(255,255,255,0.22)';
-  ctx.fillText(`${bpm} BPM  ·  ${modeName}  ·  🔥${hotness}`, 20, 38);
+  ctx.fillText(`${bpm} BPM  ·  ${modeName}  ·  ${DIFFICULTY_DEFS[difficulty].label}`, 20, 38);
 
   ctx.restore();
 }
@@ -1729,7 +1765,7 @@ function drawCountdown() {
 // ═══════════════════════════════════════════════════════════
 
 async function beginGame() {
-  score=0; combo=0; maxCombo=0; perfects=0; goods=0; oks=0; misses=0;
+  score=0; combo=0; maxCombo=0; perfects=0; goods=0; oks=0; misses=0; keyPressMap={};
   hitFx=[]; particles=[]; laneFlash=[0,0,0,0];
   heldMods={shift:false,ctrl:false,alt:false};
   notes = generateNotes();
@@ -1789,15 +1825,15 @@ function showResults() {
   const gc={S:'#ffdd55',A:'#55ff99',B:'#5599ff',C:'#ffaa44',D:'#cc55ff',F:'#ff5577'};
   const modeName=mode==='straight'?'Straight Keys':mode==='shifty'?'Shifty Keys':'HotKeyS';
 
-  // High score (keyed by songTitle + mode + hotness)
-  const hsKey=`hs:${songTitle||''}:${mode}:${hotness}`;
+  // High score (keyed by songTitle + mode + difficulty)
+  const hsKey=`hs:${songTitle||''}:${mode}:${difficulty}`;
   const prev=parseInt(localStorage.getItem(hsKey)||'0',10);
   const isNew=score>prev;
   if(isNew) localStorage.setItem(hsKey,score);
 
   document.getElementById('resNew').classList.toggle('show',isNew);
   document.getElementById('resSongName').textContent=songTitle||'Unknown Track';
-  document.getElementById('resMeta').textContent=`${modeName}  ·  🔥${hotness}  ·  ${bpm} BPM`;
+  document.getElementById('resMeta').textContent=`${modeName}  ·  ${DIFFICULTY_DEFS[difficulty].label}  ·  ${bpm} BPM`;
 
   // Re-trigger grade animation by replacing the element clone trick
   const gradeEl=document.getElementById('resGrade');
@@ -1881,9 +1917,9 @@ function applyMenuMode(idx) {
   updateMenuFocus();
 }
 
-function applyHotness(n) {
-  hotness = n;
-  document.querySelectorAll('.heat-btn').forEach(b => b.classList.toggle('active', +b.dataset.h === n));
+function applyDifficulty(key) {
+  difficulty = key;
+  document.querySelectorAll('.diff-btn').forEach(b => b.classList.toggle('active', b.dataset.diff === key));
   updateMenuFocus();
 }
 
@@ -1892,15 +1928,15 @@ function updateMenuFocus() {
   const fgMap = { 0:'fgMusic', 1:'fgBpm', 2:'fgOffbeat', 3:'fgOffset', 6:'fgNumPct' };
   for (const [sec, id] of Object.entries(fgMap))
     document.getElementById(id).classList.toggle('kb-focus', menuSection === +sec);
-  document.getElementById('fgHotness').classList.toggle('kb-focus', menuSection === 5);
+  document.getElementById('fgDifficulty').classList.toggle('kb-focus', menuSection === 5);
 
   // Mode cards (section 4)
   document.querySelectorAll('.mode-card').forEach((c, i) =>
     c.classList.toggle('kb-focus', menuSection === 4 && i === menuModeIdx));
 
-  // Hotness (section 5)
-  document.querySelectorAll('.heat-btn').forEach(b =>
-    b.classList.toggle('kb-focus', menuSection === 5 && +b.dataset.h === hotness));
+  // Difficulty (section 5)
+  document.querySelectorAll('.diff-btn').forEach(b =>
+    b.classList.toggle('kb-focus', menuSection === 5 && b.dataset.diff === difficulty));
 
   // Start (section 7)
   document.getElementById('startBtn').classList.toggle('kb-focus', menuSection === 7);
@@ -1920,17 +1956,25 @@ function updateResultsFocus() {
 //  SETUP UI
 // ═══════════════════════════════════════════════════════════
 
-// Build hotness grid
+// Build difficulty grid
 (function() {
-  const grid = document.getElementById('hotnessGrid');
-  for (let i=1; i<=10; i++) {
+  const DESCS = {
+    easy:   'Whole notes with long rests',
+    medium: 'Whole & half-note chains',
+    hard:   'Quarter/half-note riffs',
+    expert: '16th & 8th-note bursts',
+  };
+  const grid = document.getElementById('diffGrid');
+  DIFF_KEYS.forEach(key => {
+    const def = DIFFICULTY_DEFS[key];
     const btn = document.createElement('div');
-    btn.className = 'heat-btn' + (i===hotness?' active':'');
-    btn.textContent = i;
-    btn.dataset.h = i;
-    btn.addEventListener('click', () => { menuSection = 5; applyHotness(i); });
+    btn.className = 'diff-btn' + (key === difficulty ? ' active' : '');
+    btn.dataset.diff = key;
+    btn.style.setProperty('--diff-color', def.color);
+    btn.innerHTML = `<div class="diff-name">${def.label}</div><div class="diff-desc">${DESCS[key]}</div>`;
+    btn.addEventListener('click', () => { menuSection = 5; applyDifficulty(key); });
     grid.appendChild(btn);
-  }
+  });
 })();
 
 // Mode cards
