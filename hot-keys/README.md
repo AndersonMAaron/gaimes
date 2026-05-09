@@ -94,7 +94,7 @@ All modes use a single-lane **perspective trapezoid** highway that is narrower a
 ```
 FL_TOP    = 70     y coordinate of vanishing point
 FL_HIT_Y  = 480    y coordinate of hit zone
-FL_TOP_W  = 120    highway width at top
+FL_TOP_W  = 120    highway width at vanishing point
 FL_BOT_W  = 380    highway width at hit zone
 CW        = 900    canvas logical width
 CH        = 800    canvas logical height
@@ -223,6 +223,27 @@ High scores are persisted in `localStorage` keyed by `hs:{songTitle}:{mode}:{dif
 
 ---
 
+## Powerups
+
+Every 12th consecutive hit while at the ×4 multiplier (with no powerup already active) charges one consumable powerup. A `⬆ POWERUP READY` banner appears. Press an **arrow key** to activate:
+
+| Key | Name | Duration | Effect |
+|-----|------|----------|--------|
+| ↑ ArrowUp | **DOUBLE DOWN** | 10 s | Current multiplier is doubled while active |
+| → ArrowRight | **P-P-P-P** | 8 s | Every keypress is treated as `P`, hitting any note in the window |
+| ↓ ArrowDown | **HACKER MODE** | 5 s | Any keypress hits any note in the window; if no note is queued, awards a free +25 points |
+| ← ArrowLeft | **AUTOPILOT** | 10 s | Notes in the hit window are automatically scored as Good without any input |
+
+Only one powerup can be active at a time. The charge is consumed on activation; a new charge can be earned after the active powerup expires.
+
+Four powerup slot icons are displayed **vertically to the right of the multiplier bar**, one per arrow direction. Each slot shows:
+- A dim circle when uncharged
+- A bright glow ring when charged/active
+- A depleting arc that tracks remaining duration while active
+- The arrow direction icon and a short label
+
+---
+
 ## Audio Sync
 
 All timing uses `audioEl.currentTime * 1000 + audioOffset`. A calibration tool plays a Web Audio API click track at known BPM intervals and collects 8 tap timings, computing:
@@ -323,9 +344,10 @@ Random chars are drawn uniformly from `a–z` (95% by default) or `0–9` (5%), 
 
 `processHitFlat(char, shiftHeld)`:
 1. `nowMs = audioEl.currentTime * 1000 + audioOffset`
-2. Find active notes where `n.char === char && n.needsShift === shiftHeld && |nowMs - n.hitTime| <= okWindow`
-3. Pick the closest by `|nowMs - n.hitTime|`
-4. Grade it: perfect / good / ok based on hit windows; apply combo multiplier; award points; spawn hit-fx particle
+2. Check active powerup first (see Powerups section)
+3. Find active notes where `n.char === char && n.needsShift === shiftHeld && |nowMs - n.hitTime| <= okWindow`
+4. Pick the closest by `|nowMs - n.hitTime|`
+5. Grade it: perfect / good / ok based on hit windows; apply combo multiplier; award points; spawn hit-fx particle
 
 Notes past `okWindow` after their hitTime are marked missed on the next game tick.
 
@@ -338,11 +360,36 @@ ok:      clamp(beatMs * 0.36, 55, 240)
 
 ### Combo and scoring
 
-Base points: Perfect = 100, Good = 75, OK = 50. Multiplied by current multiplier.
+Base points: Perfect = 100, Good = 75, OK = 50. Multiplied by current multiplier (doubled again if DOUBLE DOWN is active).
 
 Multiplier thresholds: ×1 at 0+, ×2 at 3+, ×3 at 6+, ×4 at 12+. Any miss resets combo to 0.
 
-Draw a vertical progress bar to the right of the highway showing the four multiplier tiers, filling upward as combo grows. Color each tier distinctly (blue, green, orange, pink).
+Draw a vertical progress bar to the right of the highway showing the four multiplier tiers, filling upward as combo grows. Color each tier distinctly (blue, green, orange, pink). To the right of this bar, stack the four powerup slot icons vertically (see Powerups).
+
+### Powerups
+
+State: `powerupCharge` (0 or 1), `activePowerup` (null or object with `{ type, label, color, icon, expiresAt, duration }`).
+
+**Earning a charge:** Inside `scoreNote`, after awarding points: if `combo % 12 === 0 && powerupCharge === 0 && !activePowerup`, set `powerupCharge = 1` and spawn a `⬆ POWERUP READY` banner.
+
+**Activating:** Arrow keys during PLAYING state. If `powerupCharge === 1`, consume the charge and set `activePowerup` with the selected type and an `expiresAt = nowMs + duration`. In the game tick, clear `activePowerup` when `nowMs >= expiresAt`.
+
+```javascript
+const POWERUPS = {
+  ArrowUp:    { type:'double',    label:'DOUBLE DOWN', color:'#ffdd55', icon:'↑', duration:10000 },
+  ArrowRight: { type:'allP',      label:'P-P-P-P',     color:'#55ffcc', icon:'→', duration:8000  },
+  ArrowDown:  { type:'hacker',    label:'HACKER MODE', color:'#55ff99', icon:'↓', duration:5000  },
+  ArrowLeft:  { type:'autopilot', label:'AUTOPILOT',   color:'#ff88cc', icon:'←', duration:10000 },
+};
+```
+
+**Hit detection overrides** (check before normal matching):
+- `hacker`: any keypress hits the nearest note in the ok window; if no note is present, award +25 points and return
+- `allP`: only `p` keypresses are accepted, but `p` matches any note in the ok window (ignores `char`)
+- `double`: no hit override — multiplier is doubled in scoring
+- `autopilot`: no keypress override — in `checkMisses`, auto-score notes that enter the ok window as Good
+
+**Powerup slot UI:** Four icons stacked vertically to the right of the mult bar, from top to bottom: ↑ ↓ → ← (or ArrowUp, ArrowDown, ArrowRight, ArrowLeft order). Each slot: dim circle background; bright glow ring when this slot's powerup is charged or active; depleting arc (clockwise drain) while active showing remaining fraction; the arrow icon centered; a short label below. Color each slot with its powerup color.
 
 ### Beat indicator
 
@@ -405,3 +452,4 @@ After pressing Start, a 3-2-1-GO countdown plays over the paused highway before 
 - Lane flash: brief highlight of the hit zone on any successful hit
 - Difficulty colors: Easy `#55ff99`, Medium `#5599ff`, Hard `#ffaa44`, Expert `#ff5577`
 - Mode colors: Straight `#55ff99`, Shifty `#ffdd55`, Spacey `#cc88ff`
+- Powerup active: tint the active powerup's color subtly across the UI (mult bar glow, banner text)

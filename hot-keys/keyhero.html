@@ -596,6 +596,13 @@ const DIFFICULTY_DEFS = {
 };
 const DIFF_KEYS = ['easy','medium','hard','expert'];
 
+const POWERUPS = {
+  ArrowUp:    { type:'double',    label:'DOUBLE DOWN', color:'#ffdd55', icon:'↑', duration:10000 },
+  ArrowRight: { type:'allP',      label:'P-P-P-P',     color:'#55ffcc', icon:'→', duration:8000  },
+  ArrowDown:  { type:'hacker',    label:'HACKER MODE', color:'#55ff99', icon:'↓', duration:5000  },
+  ArrowLeft:  { type:'autopilot', label:'AUTOPILOT',   color:'#ff88cc', icon:'←', duration:10000 },
+};
+
 // ═══════════════════════════════════════════════════════════
 //  GAME STATE
 // ═══════════════════════════════════════════════════════════
@@ -613,6 +620,8 @@ let hitFx        = [];
 let particles    = [];
 let laneFlash    = [0,0,0,0];
 let keyPressMap  = {}; // char → performance.now() of last press
+let powerupCharge  = 0;    // 0 or 1 — earned at 4× combo
+let activePowerup  = null; // { type, label, color, icon, expiresAt, duration }
 let heldMods     = { shift:false, ctrl:false, alt:false };
 let offbeat      = false;
 let audioOffset  = 0; // ms — positive shifts hit window later (compensates early-audio latency)
@@ -810,6 +819,21 @@ document.addEventListener('keydown', e => {
 
   if (gameState !== 'PLAYING') return;
 
+  // Arrow keys trigger powerups
+  if (['ArrowUp','ArrowRight','ArrowDown','ArrowLeft'].includes(e.key)) {
+    e.preventDefault();
+    if (powerupCharge > 0 && !activePowerup) activatePowerup(e.key);
+    return;
+  }
+
+  // Hacker Mode: any key hits the nearest note — bypass all other filters
+  if (activePowerup?.type === 'hacker' && e.key !== 'Escape') {
+    e.preventDefault();
+    keyPressMap[e.key] = performance.now();
+    processHitFlat(e.key, false); // char is ignored inside processHitFlat when hacker active
+    return;
+  }
+
   // Shift+number fires a symbol key (!, @, #…). Map back to the base digit for Shifty mode.
   const SHIFT_SYMBOLS = {'!':'1','@':'2','#':'3','$':'4','%':'5','^':'6','&':'7','*':'8','(':'9',')':'0'};
   const rawKey = e.key.toLowerCase();
@@ -855,24 +879,42 @@ function laneFromEvent(e) {
   return 0;
 }
 
-// Straight / Shifty hit processing
+// Straight / Shifty / Spacey hit processing
 function processHitFlat(char, shiftHeld) {
   const nowMs = audioEl.currentTime * 1000 + audioOffset;
   const { perfect:pw, good:gw, ok:ow } = hitWindows();
+  const pu = activePowerup;
 
-  const cands = notes.filter(n =>
-    n.state === 'active' &&
-    n.char === char &&
-    n.needsShift === shiftHeld &&
-    Math.abs(nowMs - n.hitTime) <= ow
-  );
+  let cands;
+  if (pu?.type === 'hacker') {
+    // Any key hits the nearest note — ignore char entirely
+    cands = notes.filter(n => n.state === 'active' && Math.abs(nowMs - n.hitTime) <= ow);
+    if (!cands.length) {
+      // No note in window — award free hack points for the keystroke
+      score += 25;
+      spawnFx(CW/2, FL_HIT_Y - 35, '+25', pu.color);
+      laneFlash[0] = 0.3;
+      return;
+    }
+  } else if (pu?.type === 'allP') {
+    // Only 'p' key fires, but it matches any note
+    if (char.toLowerCase() !== 'p') return;
+    cands = notes.filter(n => n.state === 'active' && Math.abs(nowMs - n.hitTime) <= ow);
+  } else {
+    cands = notes.filter(n =>
+      n.state === 'active' &&
+      n.char === char &&
+      n.needsShift === shiftHeld &&
+      Math.abs(nowMs - n.hitTime) <= ow
+    );
+  }
   if (!cands.length) return;
 
   cands.sort((a,b) => Math.abs(nowMs-a.hitTime) - Math.abs(nowMs-b.hitTime));
   scoreNote(cands[0], nowMs, pw, gw);
 
-  const col = shiftHeld ? '#ffaa44' : '#55ff99';
-  const sx = flatNoteX(cands[0].char, FL_HIT_Y);
+  const col = pu ? pu.color : (cands[0].char === ' ' ? '#cc88ff' : shiftHeld ? '#ffaa44' : '#55ff99');
+  const sx  = cands[0].char === ' ' ? CW/2 : flatNoteX(cands[0].char, FL_HIT_Y);
   spawnFx(sx, FL_HIT_Y - 22, cands[0].hitGrade, col);
   spawnParticles(sx, FL_HIT_Y, col, cands[0].hitGrade === 'Perfect' ? 18 : 11);
   laneFlash[0] = 1.0;
@@ -911,13 +953,48 @@ function scoreNote(note, nowMs, pw, gw) {
   note.hitGrade = grade;
   combo++;
   maxCombo = Math.max(maxCombo, combo);
-  score += note.pts * multiplier();
+  let mult = multiplier();
+  if (activePowerup?.type === 'double') mult *= 2;
+  score += note.pts * mult;
+  // Grant a powerup charge every time combo hits a new multiple of 12 (4× threshold)
+  if (combo % 12 === 0 && powerupCharge === 0 && !activePowerup) {
+    powerupCharge = 1;
+    spawnFx(CW/2, FL_HIT_Y - 80, '⬆ POWERUP READY', '#ffdd55');
+  }
+}
+
+function autoScoreNote(note) {
+  note.state = 'hit';
+  note.hitGrade = 'Good'; goods++; note.pts = 75;
+  combo++; maxCombo = Math.max(maxCombo, combo);
+  score += 75 * multiplier();
+  if (combo % 12 === 0 && powerupCharge === 0 && !activePowerup) powerupCharge = 1;
+  const sx = note.char === ' ' ? CW/2 : flatNoteX(note.char, FL_HIT_Y);
+  spawnFx(sx, FL_HIT_Y - 22, 'Good', '#ff88cc');
+  spawnParticles(sx, FL_HIT_Y, '#ff88cc', 10);
+  laneFlash[0] = 0.7;
+}
+
+function activatePowerup(key) {
+  const def = POWERUPS[key];
+  if (!def) return;
+  const nowMs = audioEl.currentTime * 1000 + audioOffset;
+  activePowerup = { ...def, expiresAt: nowMs + def.duration };
+  powerupCharge = 0;
+  spawnFx(CW/2, FL_HIT_Y - 100, def.icon + ' ' + def.label + '!', def.color);
 }
 
 function checkMisses(nowMs) {
   const { ok:ow } = hitWindows();
   for (const n of notes) {
-    if (n.state !== 'active' || nowMs - n.hitTime <= ow) continue;
+    if (n.state !== 'active') continue;
+    const dt = nowMs - n.hitTime;
+    // Autopilot: auto-score any note that just crossed the hit line
+    if (activePowerup?.type === 'autopilot' && dt > 0 && dt <= ow) {
+      autoScoreNote(n);
+      continue;
+    }
+    if (dt <= ow) continue;
     n.state = 'missed';
     misses++;
     combo = 0;
@@ -963,6 +1040,7 @@ function updateLaneFlash() {
 function gameLoop() {
   if (gameState !== 'PLAYING') return;
   const nowMs = audioEl.currentTime * 1000;
+  if (activePowerup && nowMs > activePowerup.expiresAt) activePowerup = null;
   checkMisses(nowMs);
   updateParticles(); updateFx(); updateLaneFlash();
   drawFrame(nowMs);
@@ -997,6 +1075,7 @@ function drawFrame(nowMs) {
   drawMultBar();
   drawKeyboard(nowMs);
   drawBeatIndicator(nowMs);
+  drawPowerupOverlay(nowMs);
   drawHUD(nowMs);
   drawParticleLayer();
   drawFxLayer();
@@ -1671,6 +1750,90 @@ function drawBeatIndicator(nowMs) {
   ctx.restore();
 }
 
+function drawPowerupOverlay(nowMs) {
+  const pu = activePowerup;
+
+  // Hacker Mode: faint green wash over the highway
+  if (pu?.type === 'hacker') {
+    const { sx, w } = flatHBounds(FL_HIT_Y);
+    ctx.save();
+    ctx.globalAlpha = 0.07;
+    ctx.fillStyle = '#55ff99';
+    ctx.fillRect(sx, FL_TOP, w, FL_HIT_Y - FL_TOP);
+    ctx.restore();
+  }
+
+  if (gameState !== 'PLAYING') return;
+
+  // Position: right of the mult bar (barX = rEdge+12, barW=10, labels ~20px wide)
+  const rEdge  = flatHBounds(FL_HIT_Y).sx + flatHBounds(FL_HIT_Y).w;
+  const slotCX = rEdge + 12 + 10 + 30; // center X of each icon circle
+  const slotH  = (FL_HIT_Y - FL_TOP) / 4;
+  const R      = 11; // icon circle radius
+
+  const keys   = ['ArrowUp','ArrowRight','ArrowDown','ArrowLeft'];
+  const ready  = powerupCharge > 0 && !pu;
+  const pulse  = ready ? 0.5 + 0.5 * Math.sin(nowMs / 220) : 0;
+
+  ctx.save();
+  ctx.textAlign = 'center';
+
+  keys.forEach((k, i) => {
+    const def     = POWERUPS[k];
+    const isActive = pu?.type === def.type;
+    const slotMidY = FL_TOP + slotH * i + slotH / 2;
+
+    // Dim base circle
+    ctx.globalAlpha = isActive ? 1 : ready ? 0.45 + pulse * 0.45 : 0.18;
+    ctx.fillStyle = isActive ? def.color + '22' : 'rgba(255,255,255,0.04)';
+    ctx.shadowBlur = 0;
+    ctx.beginPath(); ctx.arc(slotCX, slotMidY, R, 0, Math.PI * 2); ctx.fill();
+
+    // Glow ring when ready or active
+    if (ready || isActive) {
+      ctx.shadowColor = def.color;
+      ctx.shadowBlur  = isActive ? 14 : 6 + pulse * 10;
+      ctx.strokeStyle = isActive ? def.color : def.color + Math.round((0.4 + pulse * 0.6) * 255).toString(16).padStart(2,'0');
+      ctx.lineWidth   = 1.5;
+      ctx.beginPath(); ctx.arc(slotCX, slotMidY, R, 0, Math.PI * 2); ctx.stroke();
+      ctx.shadowBlur = 0;
+    } else {
+      ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(slotCX, slotMidY, R, 0, Math.PI * 2); ctx.stroke();
+    }
+
+    // Depleting arc when this powerup is active
+    if (isActive) {
+      const remaining = clamp((pu.expiresAt - nowMs) / pu.duration, 0, 1);
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = def.color;
+      ctx.lineWidth = 3;
+      ctx.shadowColor = def.color; ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.arc(slotCX, slotMidY, R + 4, -Math.PI/2, -Math.PI/2 + remaining * Math.PI * 2);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+
+    // Arrow icon
+    ctx.globalAlpha = isActive ? 1 : ready ? 0.55 + pulse * 0.45 : 0.22;
+    ctx.fillStyle   = isActive ? def.color : ready ? def.color : 'rgba(255,255,255,0.5)';
+    ctx.font = `bold 10px "Consolas",monospace`;
+    ctx.textBaseline = 'middle';
+    ctx.fillText(def.icon, slotCX, slotMidY);
+
+    // Label below circle
+    ctx.globalAlpha = isActive ? 0.85 : ready ? 0.5 + pulse * 0.3 : 0.14;
+    ctx.fillStyle   = isActive ? def.color : ready ? def.color : 'rgba(255,255,255,0.5)';
+    ctx.font = '6px "Segoe UI",sans-serif';
+    ctx.textBaseline = 'top';
+    ctx.fillText(def.label, slotCX, slotMidY + R + 3);
+  });
+
+  ctx.restore();
+}
+
 function drawHUD(nowMs) {
   ctx.save();
 
@@ -1774,6 +1937,7 @@ async function beginGame() {
   score=0; combo=0; maxCombo=0; perfects=0; goods=0; oks=0; misses=0; keyPressMap={};
   hitFx=[]; particles=[]; laneFlash=[0,0,0,0];
   heldMods={shift:false,ctrl:false,alt:false};
+  powerupCharge=0; activePowerup=null;
   notes = generateNotes();
   showScreen('game');
   gameState = 'COUNTDOWN';
