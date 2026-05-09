@@ -142,6 +142,8 @@
     .mode-card[data-mode="shifty"].active  .mc-name { color: #ffdd55; }
     .mode-card[data-mode="hotkeys"].active { border-color: #ff5599; background: rgba(255,85,153,0.08); }
     .mode-card[data-mode="hotkeys"].active .mc-name { color: #ff5599; }
+    .mode-card[data-mode="stream"].active  { border-color: #aaddff; background: rgba(170,221,255,0.08); }
+    .mode-card[data-mode="stream"].active  .mc-name { color: #aaddff; }
 
     /* Difficulty selector */
     .diff-grid {
@@ -446,6 +448,11 @@
         <div class="mc-name">HotKeyS</div>
         <div class="mc-desc">All four modifier lanes — the full experience</div>
       </div>
+      <div class="mode-card" data-mode="stream">
+        <div class="mc-icon">◎</div>
+        <div class="mc-name">Stream</div>
+        <div class="mc-desc">Single key · pure timing · beat indicator</div>
+      </div>
     </div>
   </div>
 
@@ -592,52 +599,47 @@ const CTRL_BLACKLIST = new Set([
 // laneWeights: HotKeyS modifier-lane distribution [none,shift,ctrl,alt]
 // shiftPct: fraction of Shifty-mode notes that require Shift (0–1)
 // hitM is uniform across all difficulties (Hard's window is the standard).
+// phraseWeights arrays map to grid types: [rest, whole, half, quarter, eighth, sixteenth]
 const DIFFICULTY_DEFS = {
   easy: {
     label: 'Easy',   color: '#55ff99',
     hitM: 1.0,
     shiftPct: 0.25,
     laneWeights: [0.80, 0.12, 0.06, 0.02],
-    chains: [
-      { sub: 4.0, minLen: 2, maxLen: 4, weight: 1.0 },   // whole notes only
-    ],
-    restBeats: [3, 5],
+    phraseWeights: {
+      early: [0.15, 0.75, 0.10, 0.00, 0.00, 0.00],
+      late:  [0.20, 0.25, 0.55, 0.00, 0.00, 0.00],
+    },
   },
   medium: {
     label: 'Medium', color: '#5599ff',
     hitM: 1.0,
     shiftPct: 0.35,
     laneWeights: [0.60, 0.24, 0.12, 0.04],
-    chains: [
-      { sub: 4.0, minLen: 2, maxLen: 3, weight: 0.20 },   // whole notes
-      { sub: 2.0, minLen: 4, maxLen: 7, weight: 0.55 },   // half notes (longer)
-      { sub: 1.0, minLen: 3, maxLen: 5, weight: 0.25 },   // quarter notes (new)
-    ],
-    restBeats: [2, 3],
+    phraseWeights: {
+      early: [0.10, 0.10, 0.70, 0.10, 0.00, 0.00],
+      late:  [0.05, 0.05, 0.35, 0.55, 0.00, 0.00],
+    },
   },
   hard: {
     label: 'Hard',   color: '#ffaa44',
     hitM: 1.0,
     shiftPct: 0.40,
     laneWeights: [0.44, 0.28, 0.18, 0.10],
-    chains: [
-      { sub: 1.0, minLen: 6, maxLen: 10, weight: 0.50 },  // quarter notes (longer)
-      { sub: 2.0, minLen: 4, maxLen:  7, weight: 0.30 },  // half notes (longer)
-      { sub: 4.0, minLen: 1, maxLen:  2, weight: 0.20 },  // whole-note breathers
-    ],
-    restBeats: [1, 2],
+    phraseWeights: {
+      early: [0.05, 0.05, 0.65, 0.25, 0.00, 0.00],
+      late:  [0.00, 0.05, 0.15, 0.70, 0.10, 0.00],
+    },
   },
   expert: {
     label: 'Expert', color: '#ff5577',
     hitM: 1.0,
     shiftPct: 0.45,
     laneWeights: [0.28, 0.28, 0.24, 0.20],
-    chains: [
-      { sub: 0.25, minLen: 4, maxLen: 8, weight: 0.35 },  // 16th notes
-      { sub: 0.50, minLen: 4, maxLen: 8, weight: 0.35 },  // 8th notes
-      { sub: 1.00, minLen: 2, maxLen: 5, weight: 0.30 },  // quarter notes
-    ],
-    restBeats: [0.5, 2],
+    phraseWeights: {
+      early: [0.00, 0.00, 0.05, 0.25, 0.70, 0.00],
+      late:  [0.00, 0.00, 0.00, 0.15, 0.70, 0.15],
+    },
   },
 };
 const DIFF_KEYS = ['easy','medium','hard','expert'];
@@ -647,7 +649,8 @@ const DIFF_KEYS = ['easy','medium','hard','expert'];
 // ═══════════════════════════════════════════════════════════
 
 let gameState = 'SETUP';
-let mode       = 'straight'; // 'straight' | 'shifty' | 'hotkeys'
+let mode       = 'straight'; // 'straight' | 'shifty' | 'hotkeys' | 'stream'
+let streamAnchorMs = 0; // hitTime of the first stream note, used by beat indicator
 let difficulty = 'medium';   // 'easy' | 'medium' | 'hard' | 'expert'
 let notes        = [];
 let score        = 0;
@@ -724,12 +727,58 @@ function flatNoteX(char, y) {
 //  NOTE GENERATION
 // ═══════════════════════════════════════════════════════════
 
+function getStreamStepMs() {
+  const step16 = (60000 / bpm) / 4;
+  switch (difficulty) {
+    case 'easy':   return step16 * 16; // whole note
+    case 'medium': return step16 * 8;  // half note
+    case 'hard':   return step16 * 4;  // quarter note
+    case 'expert': return step16 * 2;  // 8th note
+    default:       return step16 * 4;
+  }
+}
+
 function generateNotes() {
-  const def    = DIFFICULTY_DEFS[difficulty];
-  const beatMs = 60000 / bpm;
-  const leadIn = Math.max(2200, TRAVEL_MS * 1.05);
-  const result = [];
+  if (mode === 'stream') {
+    const beatMs  = 60000 / bpm;
+    const stepMs  = getStreamStepMs();
+    const rawLeadIn = Math.max(2200, TRAVEL_MS * 1.05);
+    // Snap to the next beat boundary so the stream starts exactly on a beat
+    const snappedLeadIn = Math.ceil(rawLeadIn / beatMs) * beatMs;
+    const offbeatShift  = offbeat ? beatMs / 2 : 0;
+    const songEnd = songDuration - 2000;
+    const result  = [];
+    let id = 0, t = snappedLeadIn + offbeatShift;
+    streamAnchorMs = t; // record for beat indicator phase
+    while (t < songEnd) {
+      const char = Math.random() * 100 < numericPct
+        ? '0123456789'[Math.floor(Math.random() * 10)]
+        : 'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random() * 26)];
+      result.push({ id: id++, char, lane: 0, hitTime: t, state: 'active', needsShift: false });
+      t += stepMs;
+    }
+    return result;
+  }
+
+  const def      = DIFFICULTY_DEFS[difficulty];
+  const beatMs   = 60000 / bpm;
+  const step16   = beatMs / 4;        // one 16th-note duration
+  const measureMs = step16 * 16;      // one 4/4 measure
+  const WARMUP   = 5;                 // silent measures before notes begin
+  const leadIn   = Math.max(2200, TRAVEL_MS * 1.05);
+  const result   = [];
   let id = 0;
+
+  // 16th-note grid positions within one measure (0 = beat 1, 4 = beat 2, 8 = beat 3, 12 = beat 4)
+  const GRIDS = {
+    rest:      [],
+    whole:     [0],
+    half:      [0, 8],
+    quarter:   [0, 4, 8, 12],
+    eighth:    [0, 2, 4, 6, 8, 10, 12, 14],
+    sixteenth: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],
+  };
+  const GRID_KEYS = ['rest','whole','half','quarter','eighth','sixteenth'];
 
   function pickChar() {
     return Math.random() * 100 < numericPct
@@ -744,41 +793,58 @@ function generateNotes() {
     return 0;
   }
 
-  function pickChain() {
-    const total = def.chains.reduce((s, c) => s + c.weight, 0);
+  function pickGrid(progress) {
+    const early = def.phraseWeights.early;
+    const late  = def.phraseWeights.late;
+    const weights = GRID_KEYS.map((_, i) => early[i] + (late[i] - early[i]) * progress);
+    const total = weights.reduce((s, w) => s + w, 0);
     let r = Math.random() * total;
-    for (const ch of def.chains) { r -= ch.weight; if (r <= 0) return ch; }
-    return def.chains[def.chains.length - 1];
+    for (let i = 0; i < GRID_KEYS.length; i++) {
+      r -= weights[i];
+      if (r <= 0) return GRID_KEYS[i];
+    }
+    return 'whole';
   }
 
-  let t = leadIn + (offbeat ? beatMs / 2 : 0);
+  const offbeatShift = offbeat ? step16 * 2 : 0; // shift by one 8th note
+  const songEnd      = songDuration - 2000;
+  const contentStart = leadIn + WARMUP * measureMs;
+  const contentMs    = songEnd - contentStart;
 
-  while (t < songDuration - 2000) {
-    const chain  = pickChain();
-    const stepMs = beatMs * chain.sub;
-    const len    = chain.minLen + Math.floor(Math.random() * (chain.maxLen - chain.minLen + 1));
+  let t = contentStart + offbeatShift;
 
-    // In HotKeyS, half the time hold the same lane for the whole chain (feels like a chord riff)
-    const chainLane = (mode === 'hotkeys' && Math.random() < 0.5) ? pickLane() : -1;
+  while (t < songEnd) {
+    const progress  = Math.min(1, (t - contentStart) / contentMs);
+    const gridKey   = pickGrid(progress);
+    const grid      = GRIDS[gridKey];
+    const phraseLen = Math.random() < 0.67 ? 4 : 2; // mostly 4-measure phrases
 
-    for (let i = 0; i < len && t < songDuration - 2000; i++) {
-      const lane       = mode === 'hotkeys' ? (chainLane >= 0 ? chainLane : pickLane()) : 0;
-      const needsShift = mode === 'shifty'  ? Math.random() < def.shiftPct : false;
+    // In HotKeyS, 50% chance to lock the modifier lane for the whole phrase
+    const phraseLane = (mode === 'hotkeys' && Math.random() < 0.5) ? pickLane() : -1;
 
-      let char, tries = 0;
-      do { char = pickChar(); tries++; }
-      while (lane === 2 && CTRL_BLACKLIST.has(char) && tries < 20);
-      if (lane === 2 && CTRL_BLACKLIST.has(char)) continue;
+    for (let m = 0; m < phraseLen; m++) {
+      const mStart = t + m * measureMs;
+      if (mStart >= songEnd) break;
+      for (const pos of grid) {
+        const hitTime = mStart + pos * step16;
+        if (hitTime >= songEnd) break;
 
-      result.push({ id: id++, char, lane, hitTime: t, state: 'active', needsShift });
-      t += stepMs;
+        const lane       = mode === 'hotkeys' ? (phraseLane >= 0 ? phraseLane : pickLane()) : 0;
+        const needsShift = mode === 'shifty'  ? Math.random() < def.shiftPct : false;
+
+        let char, tries = 0;
+        do { char = pickChar(); tries++; }
+        while (lane === 2 && CTRL_BLACKLIST.has(char) && tries < 20);
+        if (lane === 2 && CTRL_BLACKLIST.has(char)) continue;
+
+        result.push({ id: id++, char, lane, hitTime, state: 'active', needsShift });
+      }
     }
 
-    // Deliberate rest between chains — gives the "riff then breathe" feel
-    const [minR, maxR] = def.restBeats;
-    t += beatMs * (minR + Math.random() * (maxR - minR));
+    t += phraseLen * measureMs;
   }
 
+  result.sort((a, b) => a.hitTime - b.hitTime);
   return result;
 }
 
@@ -885,6 +951,10 @@ document.addEventListener('keydown', e => {
   else if (mode === 'shifty') {
     if (e.ctrlKey || e.altKey) return; // ignore Ctrl/Alt in Shifty
     processHitFlat(key, e.shiftKey);
+  }
+  else if (mode === 'stream') {
+    if (e.shiftKey || e.ctrlKey || e.altKey) return;
+    processHitFlat(key, false);
   }
   else { // hotkeys
     const lane = laneFromEvent(e);
@@ -1063,6 +1133,7 @@ function drawFrame(nowMs) {
   drawNextNote();
   drawMultBar();
   drawKeyboard(nowMs);
+  if (mode === 'stream') drawBeatIndicator(nowMs);
   drawHUD(nowMs);
   drawParticleLayer();
   drawFxLayer();
@@ -1665,6 +1736,44 @@ function drawKeyboard(nowMs) {
 //  RENDERING — shared HUD, particles, fx, countdown
 // ═══════════════════════════════════════════════════════════
 
+function drawBeatIndicator(nowMs) {
+  const stepMs  = getStreamStepMs();
+  // Phase: 0 = beat moment, increases toward stepMs
+  // streamAnchorMs is the hitTime of the first note — keeps indicator locked to notes
+  const phase   = ((nowMs - streamAnchorMs) % stepMs + stepMs) % stepMs;
+  const pulse   = clamp(1 - phase / (stepMs * 0.3), 0, 1);
+
+  // Sit to the left of the flat highway; highway left edge ≈ (CW - FL_BOT_W)/2 = 260
+  const cx = 210, cy = FL_HIT_Y;
+  const baseR = 14, r = baseR + pulse * 9;
+  const col = DIFFICULTY_DEFS[difficulty].color;
+
+  ctx.save();
+
+  // Outer glow
+  if (pulse > 0.05) {
+    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 2.8);
+    g.addColorStop(0, col + 'aa');
+    g.addColorStop(1, col + '00');
+    ctx.globalAlpha = pulse * 0.45;
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(cx, cy, r * 2.8, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // Filled circle
+  ctx.globalAlpha = 0.06 + pulse * 0.30;
+  ctx.fillStyle = col;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+
+  // Ring
+  ctx.globalAlpha = 0.25 + pulse * 0.75;
+  ctx.strokeStyle = col;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+
+  ctx.restore();
+}
+
 function drawHUD(nowMs) {
   ctx.save();
 
@@ -1717,7 +1826,7 @@ function drawHUD(nowMs) {
   pg.addColorStop(0,'#5599ff'); pg.addColorStop(1,'#cc55ff');
   ctx.fillStyle=pg; ctx.fillRect(barX,barY,barW*pct,barH);
 
-  const modeName = mode==='straight'?'Straight Keys':mode==='shifty'?'Shifty Keys':'HotKeyS';
+  const modeName = mode==='straight'?'Straight Keys':mode==='shifty'?'Shifty Keys':mode==='stream'?'Stream':'HotKeyS';
   ctx.font='10px "Segoe UI"'; ctx.fillStyle='rgba(255,255,255,0.22)';
   ctx.fillText(`${bpm} BPM  ·  ${modeName}  ·  ${DIFFICULTY_DEFS[difficulty].label}`, 20, 38);
 
@@ -1823,7 +1932,7 @@ function showResults() {
   const perfectPct=tot>0?(perfects/tot)*100:0;
   const grade=acc>=95?'S':acc>=85?'A':acc>=70?'B':acc>=60?'C':acc>=50?'D':'F';
   const gc={S:'#ffdd55',A:'#55ff99',B:'#5599ff',C:'#ffaa44',D:'#cc55ff',F:'#ff5577'};
-  const modeName=mode==='straight'?'Straight Keys':mode==='shifty'?'Shifty Keys':'HotKeyS';
+  const modeName=mode==='straight'?'Straight Keys':mode==='shifty'?'Shifty Keys':mode==='stream'?'Stream':'HotKeyS';
 
   // High score (keyed by songTitle + mode + difficulty)
   const hsKey=`hs:${songTitle||''}:${mode}:${difficulty}`;
@@ -1908,7 +2017,7 @@ function showScreen(name) {
 
 // ── Keyboard navigation helpers ──────────────────────────────
 
-const MENU_MODES = ['straight', 'shifty', 'hotkeys'];
+const MENU_MODES = ['straight', 'shifty', 'hotkeys', 'stream'];
 
 function applyMenuMode(idx) {
   menuModeIdx = idx;

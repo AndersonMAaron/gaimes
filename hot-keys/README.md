@@ -9,71 +9,22 @@ A Guitar Hero-style rhythm game played entirely with a standard keyboard. Alphan
 | Mode | Description |
 |------|-------------|
 | **Straight Keys** | Plain keypresses only. Notes fall at positions matching their physical QWERTY location. |
-| **Shifty Keys** | ~40% of notes require Shift. Shift-required notes glow orange; plain notes glow green. |
+| **Shifty Keys** | ~25–45% of notes require Shift. Shift-required notes glow orange; plain notes glow green. |
 | **HotKeyS** | Four modifier lanes: None, Shift, Ctrl, Alt. The full experience. |
+| **Stream** | Continuous stream of random keys at a fixed rhythm determined by difficulty. No rests, no warmup. Used for timing calibration and pure rhythm practice. Includes a beat indicator circle to the left of the hit zone. |
 
 ---
 
-## Hotness (Difficulty)
+## Difficulty
 
-Difficulty is controlled by a single **Hotness** slider from 1–10. Each level is defined by three parameters:
+Difficulty is selected from four preset levels: **Easy**, **Medium**, **Hard**, and **Expert**. Each controls three things: the note generation phrase weights, the Shifty-mode Shift probability, and the HotKeyS modifier-lane distribution.
 
-```
-HOTNESS[level - 1] = { sub, den, hitM }
-```
-
-| Level | sub   | den  | hitM |
-|-------|-------|------|------|
-| 1     | 4.00  | 0.55 | 2.20 |
-| 2     | 3.00  | 0.58 | 2.00 |
-| 3     | 2.00  | 0.62 | 1.70 |
-| 4     | 1.50  | 0.65 | 1.50 |
-| 5     | 1.00  | 0.68 | 1.30 |
-| 6     | 0.75  | 0.70 | 1.10 |
-| 7     | 0.50  | 0.72 | 0.90 |
-| 8     | 0.33  | 0.73 | 0.75 |
-| 9     | 0.25  | 0.75 | 0.62 |
-| 10    | 0.17  | 0.77 | 0.50 |
-
-### `sub` — Beat Subdivision
-
-`sub` is a multiplier applied to the beat interval to produce the note-grid step size:
-
-```
-stepMs = (60000 / bpm) × sub
-```
-
-A beat at 120 BPM is 500 ms. With `sub = 1.00` (level 5), notes are placed on every beat (500 ms apart). With `sub = 0.25` (level 9), notes are placed on every sixteenth note (125 ms apart). With `sub = 0.17` (level 10), notes approach sixteenth-note triplet density (~83 ms apart).
-
-Clean musical fractions were chosen intentionally so note grids stay rhythmically coherent regardless of BPM:
-
-| sub  | Equivalent subdivision |
-|------|------------------------|
-| 4.00 | Every 4 beats (whole note) |
-| 2.00 | Every 2 beats (half note) |
-| 1.00 | Every beat (quarter note) |
-| 0.50 | Eighth note |
-| 0.25 | Sixteenth note |
-| 0.17 | ~Sixteenth triplet |
-
-### `den` — Note Density
-
-After the grid step places a candidate slot, `den` is the probability that slot actually spawns a note:
-
-```javascript
-if (Math.random() >= h.den) continue;  // skip this slot
-```
-
-At level 1, `den = 0.55` means roughly 55% of grid slots produce a note. At level 10, `den = 0.77`. This interacts multiplicatively with `sub`: a fine grid with low density can feel similar in note count to a coarse grid with high density, but the fine grid forces more precise timing even for the notes that do appear.
-
-### `hitM` — Hit Window Multiplier
-
-`hitM` scales the three hit windows around each note's target time:
+Hit windows are **uniform across all difficulties** (equivalent to the old Hotness 7 window at 120 BPM).
 
 ```javascript
 function hitWindows() {
   const beatMs = 60000 / bpm;
-  const m = HOTNESS[hotness - 1].hitM;
+  const m = 1.0; // same for all difficulties
   return {
     perfect: clamp(beatMs × 0.11 × m,  16,  95),
     good:    clamp(beatMs × 0.22 × m,  32, 160),
@@ -82,21 +33,114 @@ function hitWindows() {
 }
 ```
 
-Base windows are proportional to the beat (11%, 22%, 36% of one beat), then scaled by `hitM` and clamped to prevent extremes at very high or very low BPM. At level 1 (`hitM = 2.2`) the windows are more than double their base size. At level 10 (`hitM = 0.5`) they are halved, demanding near-perfect timing.
-
 **Example at 120 BPM (beatMs = 500 ms):**
 
-| Level | hitM | Perfect window | Good window | OK window |
-|-------|------|---------------|-------------|-----------|
-| 1     | 2.20 | 95 ms (capped) | 160 ms (capped) | 240 ms (capped) |
-| 5     | 1.30 | 71 ms | 143 ms | 234 ms |
-| 10    | 0.50 | 27 ms | 55 ms | 90 ms |
+| Window  | Size   |
+|---------|--------|
+| Perfect | 55 ms  |
+| Good    | 110 ms |
+| OK      | 180 ms |
+
+---
+
+## Note Generation — Phrase Grid
+
+Notes are generated in **phrases** of 2 or 4 measures (67% chance of 4 measures). Each phrase picks a single rhythmic grid from a weighted set, then stamps that grid across every measure in the phrase. There is a **5-measure silence** at the start of every song before the first note appears.
+
+### 16th-Note Grid System
+
+All grids are defined as positions within a 4/4 measure, indexed in 16th-note steps (0 = beat 1, 4 = beat 2, 8 = beat 3, 12 = beat 4):
+
+| Grid | Positions | Notes per measure |
+|------|-----------|-------------------|
+| `rest` | `[]` | 0 |
+| `whole` | `[0]` | 1 |
+| `half` | `[0, 8]` | 2 |
+| `quarter` | `[0, 4, 8, 12]` | 4 |
+| `eighth` | `[0, 2, 4, 6, 8, 10, 12, 14]` | 8 |
+| `sixteenth` | `[0–15]` | 16 |
+
+```
+stepMs  = (60000 / bpm) / 4       — one 16th note in ms
+measureMs = stepMs × 16            — one 4/4 measure in ms
+```
+
+### Phrase Weight Interpolation
+
+At each phrase boundary, a grid type is chosen by weighted random selection. The weights **interpolate linearly** between an `early` set and a `late` set based on how far through the song's content the playhead is:
+
+```javascript
+weight[i] = early[i] + (late[i] - early[i]) × progress
+// progress = 0 at first phrase, 1 at last phrase
+```
+
+Weight arrays map to: `[rest, whole, half, quarter, eighth, sixteenth]`
+
+| Difficulty | early weights | late weights |
+|------------|--------------|--------------|
+| Easy | `[0.15, 0.75, 0.10, 0, 0, 0]` | `[0.20, 0.25, 0.55, 0, 0, 0]` |
+| Medium | `[0.10, 0.10, 0.70, 0.10, 0, 0]` | `[0.05, 0.05, 0.35, 0.55, 0, 0]` |
+| Hard | `[0.05, 0.05, 0.65, 0.25, 0, 0]` | `[0.00, 0.05, 0.15, 0.70, 0.10, 0]` |
+| Expert | `[0, 0, 0.05, 0.25, 0.70, 0]` | `[0, 0, 0, 0.15, 0.70, 0.15]` |
+
+**Reading the table:** Easy starts on whole notes and gradually shifts toward half notes by the end of the song; rests appear throughout. Expert opens with mostly eighth notes and introduces light sixteenth-note phrases only late in the song.
+
+### HotKeyS Lane Locking
+
+In HotKeyS mode, each phrase has a 50% chance of locking all its notes to the same modifier lane — giving the feel of a chord pattern or modifier hold within the phrase. Per-note lane selection uses the weighted distribution:
+
+| Difficulty | None | Shift | Ctrl | Alt |
+|------------|------|-------|------|-----|
+| Easy | 0.80 | 0.12 | 0.06 | 0.02 |
+| Medium | 0.60 | 0.24 | 0.12 | 0.04 |
+| Hard | 0.44 | 0.28 | 0.18 | 0.10 |
+| Expert | 0.28 | 0.28 | 0.24 | 0.20 |
+
+---
+
+## Stream Mode
+
+Stream mode generates a **continuous, uninterrupted sequence** of random keys at a fixed rhythmic interval — no warmup silence, no rests between phrases.
+
+### Stream Grid by Difficulty
+
+| Difficulty | Grid | Interval at 120 BPM |
+|------------|------|---------------------|
+| Easy | Whole note | 2000 ms |
+| Medium | Half note | 1000 ms |
+| Hard | Quarter note | 500 ms |
+| Expert | Eighth note | 250 ms |
+
+### Beat Alignment
+
+The first stream note is snapped to the next whole-beat boundary after the travel lead-in:
+
+```javascript
+const snappedLeadIn = Math.ceil(rawLeadIn / beatMs) * beatMs;
+```
+
+This ensures the stream starts exactly on a musical beat (assuming the song's downbeat is at `t = 0`).
+
+### Beat Indicator
+
+A pulsing circle is rendered to the left of the hit zone. Its phase is computed from `streamAnchorMs` — the hitTime of the first generated note — so the indicator stays locked to the note stream regardless of when the audio actually starts:
+
+```javascript
+const phase = ((nowMs - streamAnchorMs) % stepMs + stepMs) % stepMs;
+const pulse = clamp(1 - phase / (stepMs × 0.3), 0, 1);
+```
+
+The circle expands and brightens at each beat moment, then decays over the first 30% of the interval. Its color matches the active difficulty.
+
+### Using Stream for BPM Calibration
+
+Because every note must land exactly on a beat, any BPM mismatch compounds note-by-note and becomes visible within the first few seconds. If the notes appear to drift ahead of the song, the entered BPM is too high; if they fall behind, it is too low. Adjust the BPM slider until the notes track the song consistently from start to finish.
 
 ---
 
 ## Note Placement — Perspective Highway
 
-All three modes use a **perspective trapezoid** highway. The highway is narrowest at the top (vanishing point) and widest at the bottom hit zone.
+All modes except Stream use a **perspective trapezoid** highway. The highway is narrowest at the top (vanishing point) and widest at the bottom hit zone.
 
 ### HotKeyS (Multi-lane) Geometry
 
@@ -121,7 +165,9 @@ function hBounds(y) {
 
 Notes in each lane are centered at `sx + (lane + 0.5) × lw`.
 
-### Straight / Shifty Geometry
+Key buttons in HotKeyS are centered vertically on `HIT_ZONE_Y` (top at `HIT_ZONE_Y - 42`, bottom at `HIT_ZONE_Y + 42`).
+
+### Straight / Shifty / Stream Geometry
 
 These modes use the same trapezoid formula with narrower dimensions (`FL_TOP_W = 120`, `FL_BOT_W = 380`), and place each note horizontally according to its **physical QWERTY position**:
 
@@ -159,34 +205,15 @@ const sy = HIT_ZONE_Y - ((note.hitTime - nowMs) / TRAVEL_MS) × HWY_H;
 
 ---
 
-## HotKeyS Lane Distribution
+## Keyboard Visualization
 
-In HotKeyS mode, which modifier lane a note falls in is drawn from a weighted random distribution that shifts toward modifier lanes as hotness increases:
-
-```
-LANE_WEIGHTS[hotness - 1] = [none, shift, ctrl, alt]
-```
-
-| Level | None | Shift | Ctrl | Alt  |
-|-------|------|-------|------|------|
-| 1     | 0.80 | 0.12  | 0.06 | 0.02 |
-| 5     | 0.44 | 0.28  | 0.18 | 0.10 |
-| 10    | 0.25 | 0.25  | 0.25 | 0.25 |
-
-At level 1, 80% of notes require no modifier — ideal for learning the feel of the highway. At level 10, all four lanes are equally likely. The cumulative distribution is sampled with a single random roll:
+A miniature QWERTY keyboard is rendered in the upper-left quadrant of the screen, left of the highway. Keys glow as their corresponding note approaches the hit zone:
 
 ```javascript
-function pickLane() {
-  const r = Math.random(); let c = 0;
-  for (let i = 0; i < LANE_COUNT; i++) {
-    c += lw[i];
-    if (r < c) return i;
-  }
-  return 0;
-}
+glow = sqrt(clamp(1 - (note.hitTime - nowMs) / TRAVEL_MS, 0, 1))
 ```
 
-A **lane run** mechanic adds short bursts of the same modifier: with 22% probability a run of 1–3 consecutive same-lane notes is started, giving the feel of a chord pattern or modifier hold.
+The glow ramps from 0 (note at top of highway) to 1 (note at hit zone). When a key is physically pressed, it flashes bright green for 180 ms regardless of hit accuracy.
 
 ---
 
@@ -203,10 +230,12 @@ Points are multiplied by the current **combo multiplier**:
 
 | Combo streak | Multiplier |
 |---|---|
-| 0–4   | ×1 |
-| 5–12  | ×2 |
-| 13–24 | ×3 |
-| 25+   | ×4 |
+| 0–2   | ×1 |
+| 3–5   | ×2 |
+| 6–11  | ×3 |
+| 12+   | ×4 |
+
+Multiplier thresholds are halved compared to typical rhythm games to reward shorter consistent streaks.
 
 ---
 
@@ -227,7 +256,7 @@ A negative measured offset (user taps late) produces a positive `audioOffset`, s
 | Setting | Effect |
 |---------|--------|
 | **BPM** | Sets the beat grid. All note timing and hit windows scale with it. |
-| **Hotness 1–10** | Controls `sub` (note density grid), `den` (spawn probability), and `hitM` (hit window size). |
+| **Difficulty** | Easy / Medium / Hard / Expert — controls note density, modifier frequency, and phrase grid weights. |
 | **Number Keys %** | Fraction of notes drawn from `0–9` vs `a–z`. Default 5%. |
-| **Offbeat** | Shifts the entire note grid by half a beat, placing all notes on the eighth-note offbeats. |
+| **Offbeat** | Shifts the entire note grid by half a beat, placing all notes on the eighth-note offbeats. In Stream mode the beat indicator shifts to match. |
 | **Audio Offset** | Manual trim (±500 ms) for cases where calibration isn't needed. |
