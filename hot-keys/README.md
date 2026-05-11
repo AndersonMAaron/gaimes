@@ -1,4 +1,4 @@
-# HotKeyS
+# Tympo
 
 A Guitar Hero-style rhythm game played entirely with a standard keyboard. Alphanumeric keys are the instrument — notes fall down a perspective highway and must be pressed at the right moment to score points. All modes generate a continuous, beat-locked stream of random keys; the differences between modes are which extra inputs are required.
 
@@ -11,19 +11,20 @@ A Guitar Hero-style rhythm game played entirely with a standard keyboard. Alphan
 | **Straight Keys** | Random alphanumeric keys, no modifiers. Notes fall at their physical QWERTY position on the highway. |
 | **Shifty Keys** | Same as Straight, but a fraction of notes (per difficulty) require Shift held simultaneously. Shift notes glow orange; plain notes glow green. |
 | **Spacey Keys** | Same as Straight, but the Space bar must be pressed on the offbeat between every letter note. Space notes appear as a wide purple bar spanning the full highway width. |
+| **Wordy Keys** | Full words fall as wide cyan banners. The player types the word letter-by-letter; each letter is scored individually. The preview area becomes a typing-trainer display showing the current word (with typed letters struck-through, next letter highlighted in white, remaining letters dim) and the next word in a smaller box to the right. |
 
 ---
 
 ## Difficulty
 
-Four presets control the **note interval** (how often a note appears) and, in Shifty mode, the probability of a Shift note:
+Four presets control the **note interval** (how often a note appears), word complexity in Wordy mode, and in Shifty mode, the probability of a Shift note:
 
-| Difficulty | Interval | Grid | Shifty shift% |
-|------------|----------|------|---------------|
-| Easy | Whole note | Every 4 beats | 25% |
-| Medium | Half note | Every 2 beats | 35% |
-| Hard | Quarter note | Every beat | 40% |
-| Expert | Eighth note | Every half-beat | 45% |
+| Difficulty | Interval | Grid | Shifty shift% | Wordy words |
+|------------|----------|------|---------------|-------------|
+| Easy | Whole note | Every 4 beats | 25% | 3–4 letter common words |
+| Medium | Half note | Every 2 beats | 35% | 5–6 letter common words |
+| Hard | Quarter note | Every beat | 40% | 6–8 letter uncommon words |
+| Expert | Eighth note | Every half-beat | 45% | 8–12 letter rare/technical words |
 
 At 120 BPM: whole = 2000 ms, half = 1000 ms, quarter = 500 ms, eighth = 250 ms.
 
@@ -177,9 +178,54 @@ const pulse = clamp(1 - phase / (stepMs * 0.3), 0, 1);
 // pulse = 1 at the beat moment, decays to 0 over 30% of the interval
 ```
 
-The circle expands (base radius 14px → +9px at peak) and brightens with an outer radial glow. Color matches the active difficulty color. Useful for BPM calibration: if notes drift from the song, the BPM is wrong.
+The circle expands (base radius 14px → +11px at peak) and brightens with an outer radial glow. An additional ghost ring expands outward from the peak radius as the pulse decays, creating a ripple effect. Color matches the active difficulty color. Useful for BPM calibration: if notes drift from the song, the BPM is wrong.
 
 **BPM calibration tip:** If notes arrive ahead of the song, BPM is set too high; if they fall behind, too low. Adjust until the stream tracks the song consistently from start to finish.
+
+---
+
+## Wordy Keys Mode
+
+Words are generated from a per-difficulty dictionary and fall as wide cyan banners down the highway (same perspective highway as other flat modes). One word occupies one note slot in the beat schedule.
+
+**Dictionaries** (`WORDY_DICT`):
+- `easy` — ~100 words, 3–4 letters (cat, dog, run, sky…)
+- `medium` — ~130 words, 5–6 letters (about, dance, magic, scene…)
+- `hard` — ~150 words, 6–8 letters (ancient, culture, enhance, rhythm…)
+- `expert` — ~130 words, 8–12 letters (benchmark, elaborate, magnitude…)
+
+Words are shuffled each game; the queue reshuffles when exhausted. The active word is `wordyNextWord()` drawing from `wordyQueue`.
+
+**Scoring:** Each correctly-typed letter is scored individually:
+- Grade based on `|elapsed − (letterIdx × perLetterMs)| vs. perfect/good windows`
+- A word-completion bonus (+50 × multiplier) fires when the last letter is typed
+- Wrong letter: error flash, no miss — the player can keep trying until the deadline
+
+**Miss deadline:** `hitTime + (remaining_letters × 180ms) + ok_window`. Each untyped letter at expiry = one miss, combo reset.
+
+**Highway display:** Words render as a full-width perspective banner (same trapezoidal scaling). Letter-level progress is overlaid: typed letters dark/dim, next letter white/full-brightness, remaining letters in dim cyan.
+
+**Typing-trainer preview** (`drawWordyPreview`): Replaces the single-char box below the hit zone with a wide panel showing each character of the current word individually — typed letters dim with strikethrough, the next letter in bright white with a glowing underline cursor, remaining letters in half-opacity cyan. If space allows, the next word appears in a smaller box to the right.
+
+---
+
+## Frequency Visualizer (WMP-style)
+
+A Windows Media Player "Bars and Waves"-style frequency visualizer sits to the left of the highway, centered around `x ≈ 92`. 26 vertical bars span roughly 0–8 kHz using logarithmic frequency mapping (bass left, treble right), rising from a dark panel floor. Each bar's height is proportional to the peak amplitude in its frequency bucket. A white peak-dot sits above each bar and falls at ~1.2 px/frame.
+
+```javascript
+gameAnalyser.fftSize = 512;            // ~11.6ms slice — short window like WMP
+gameAnalyser.smoothingTimeConstant = 0.75;
+gameAnalyser.getByteFrequencyData(freqData); // 256 frequency bins, 0–255
+```
+
+**Frequency mapping:** 26 bars are logarithmically spaced over bins 0–93 (≈ 0–8 kHz at 44100 Hz) using `t = (b / NUM_BARS) ^ 1.7` to weight bass bars wider. Each bar takes the max value across its bin range.
+
+**Bar rendering:** Each bar is filled with a vertical gradient — dim difficulty color at the base fading to near-white at the tip — plus a second glow pass (`shadowBlur=8`). The peak dot is white with a colored glow.
+
+**Peak decay:** Stored in `wmpPeaks` (`Float32Array`, module-level), reset when the analyser reconnects. Each frame: `peak = max(peak - 1.2, currentBarHeight)`.
+
+The analyser is created via `ensureAnalyser()` on game start, which calls `createMediaElementSource(audioEl)` on a shared `AudioContext`. The source reconnects automatically if a new audio file is loaded. The visualizer only draws during `PLAYING` state.
 
 ---
 
@@ -229,7 +275,7 @@ Every 12th consecutive hit while at the ×4 multiplier (with no powerup already 
 
 | Key | Name | Duration | Effect |
 |-----|------|----------|--------|
-| ↑ ArrowUp | **DOUBLE DOWN** | 10 s | Current multiplier is doubled while active |
+| ↑ ArrowUp | **×2** | 10 s | Current multiplier is doubled while active |
 | → ArrowRight | **P-P-P-P** | 8 s | Every keypress is treated as `P`, hitting any note in the window |
 | ↓ ArrowDown | **HACKER MODE** | 5 s | Any keypress hits any note in the window; if no note is queued, awards a free +25 points |
 | ← ArrowLeft | **AUTOPILOT** | 10 s | Notes in the hit window are automatically scored as Good without any input |
@@ -246,13 +292,13 @@ Four powerup slot icons are displayed **vertically to the right of the multiplie
 
 ## Audio Sync
 
-All timing uses `audioEl.currentTime * 1000 + audioOffset`. A calibration tool plays a Web Audio API click track at known BPM intervals and collects 8 tap timings, computing:
+All timing uses `audioEl.currentTime * 1000 + audioOffset`. A calibration tool plays a Web Audio API click track at known BPM intervals and collects taps, computing:
 
 ```
-audioOffset = -(median of (tapTime − nearestBeatTime))
+audioOffset = median of (tapTime − nearestBeatTime)
 ```
 
-A positive `audioOffset` shifts the effective "now" forward, compensating for a user who taps consistently late. Manual offset trim is also available (±150 ms slider).
+A positive `audioOffset` shifts the effective "now" forward — if the user naturally taps 30 ms after the beat, applying +30 ms centres their hits in the window. Manual offset trim is also available (±150 ms input).
 
 ---
 
@@ -274,7 +320,7 @@ A positive `audioOffset` shifts the effective "now" forward, compensating for a 
 
 ---
 
-Build a single-file browser rhythm game called **HotKeyS** (`keyhero.html`). No build tools, no dependencies — everything in one HTML file with inline CSS and JavaScript.
+Build a single-file browser rhythm game called **Tympo** (`keyhero.html`). No build tools, no dependencies — everything in one HTML file with inline CSS and JavaScript.
 
 ### Core concept
 
@@ -285,7 +331,7 @@ Guitar Hero-style, but the instrument is a QWERTY keyboard. The player loads a l
 - Logical canvas size: `CW = 900`, `CH = 800`
 - Support HiDPI: size the canvas backing store at `CW * devicePixelRatio * canvasScale`, where `canvasScale` is computed on resize to fit the window while preserving aspect ratio
 - Apply the DPR+scale transform each frame with `ctx.setTransform(px, 0, 0, px, 0, 0)` where `px = canvasScale * devicePixelRatio`
-- Dark background `#07070f` with a subtle scanline overlay (horizontal lines every 4px at 2.2% opacity)
+- Dark background `#03030c` with a subtle scanline overlay (horizontal lines every 4px at 2.2% opacity)
 
 ### Highway geometry (flat / single-lane)
 
@@ -293,9 +339,9 @@ All three game modes use a single perspective trapezoid highway:
 
 ```
 FL_TOP    = 70     vanishing point Y
-FL_HIT_Y  = 480    hit zone Y
+FL_HIT_Y  = 560    hit zone Y
 FL_TOP_W  = 120    highway width at vanishing point
-FL_BOT_W  = 380    highway width at hit zone
+FL_BOT_W  = 420    highway width at hit zone
 ```
 
 `flatHBounds(y)` linearly interpolates width and centers it in `CW`. Note X position maps to physical QWERTY layout via normalized 0–1 positions in `KEY_POS` — `'q'` ≈ 0.095, `'a'` ≈ 0.119, `'z'` ≈ 0.167, `'p'` ≈ 0.952, spacing reflects stagger. The highway background is drawn as a perspective grid: converging vertical lane lines plus horizontal "road mark" lines that are denser near the vanishing point. A glow underlights the hit zone line.
@@ -360,11 +406,13 @@ ok:      clamp(beatMs * 0.36, 55, 240)
 
 ### Combo and scoring
 
-Base points: Perfect = 100, Good = 75, OK = 50. Multiplied by current multiplier (doubled again if DOUBLE DOWN is active).
+Base points: Perfect = 100, Good = 75, OK = 50. Multiplied by current multiplier (doubled again if ×2 powerup is active).
 
 Multiplier thresholds: ×1 at 0+, ×2 at 3+, ×3 at 6+, ×4 at 12+. Any miss resets combo to 0.
 
 Draw a vertical progress bar to the right of the highway showing the four multiplier tiers, filling upward as combo grows. Color each tier distinctly (blue, green, orange, pink). To the right of this bar, stack the four powerup slot icons vertically (see Powerups).
+
+When the ×2 powerup is active, tier labels update to show the effective doubled values (×2/×4/×6/×8 instead of ×1/×2/×3/×4). All reached-tier labels render in gold (`#ffdd55`) with a glow to signal the boosted state.
 
 ### Powerups
 
@@ -376,7 +424,7 @@ State: `powerupCharge` (0 or 1), `activePowerup` (null or object with `{ type, l
 
 ```javascript
 const POWERUPS = {
-  ArrowUp:    { type:'double',    label:'DOUBLE DOWN', color:'#ffdd55', icon:'↑', duration:10000 },
+  ArrowUp:    { type:'double',    label:'×2',          color:'#ffdd55', icon:'↑', duration:10000 },
   ArrowRight: { type:'allP',      label:'P-P-P-P',     color:'#55ffcc', icon:'→', duration:8000  },
   ArrowDown:  { type:'hacker',    label:'HACKER MODE', color:'#55ff99', icon:'↓', duration:5000  },
   ArrowLeft:  { type:'autopilot', label:'AUTOPILOT',   color:'#ff88cc', icon:'←', duration:10000 },
@@ -391,6 +439,19 @@ const POWERUPS = {
 
 **Powerup slot UI:** Four icons stacked vertically to the right of the mult bar, from top to bottom: ↑ ↓ → ← (or ArrowUp, ArrowDown, ArrowRight, ArrowLeft order). Each slot: dim circle background; bright glow ring when this slot's powerup is charged or active; depleting arc (clockwise drain) while active showing remaining fraction; the arrow icon centered; a short label below. Color each slot with its powerup color.
 
+### Frequency visualizer (WMP-style bars)
+
+A Windows Media Player-style bar visualizer is rendered to the left of the highway (centered `x=92`). Connect the audio element to a Web Audio `AnalyserNode` via `ensureAnalyser()` — `audioCtx.createMediaElementSource(audioEl)`, route source → analyser → destination. Store the analyser, a `Uint8Array(analyser.frequencyBinCount)` frequency buffer, a `Float32Array(NUM_BARS)` peak tracker (`wmpPeaks`), and a reference to `audioEl` to detect reconnects.
+
+Each frame during PLAYING state, call `analyser.getByteFrequencyData(freqData)`. Render 26 bars logarithmically spaced over bins 0–93 (~8 kHz). Each bar takes the max value across its bin range, maps to a height over an 86px panel, and is drawn with a vertical gradient (dim base → bright tip → near-white) plus a glow pass. A white peak dot sits above each bar and decays at 1.2 px/frame (`wmpPeaks[b] = max(wmpPeaks[b] - 1.2, barH)`).
+
+```javascript
+analyser.fftSize = 512;               // ~11.6ms slices — short window like WMP
+analyser.smoothingTimeConstant = 0.75;
+```
+
+When the ×2 powerup is active, show doubled multiplier tier labels (×2/×4/×6/×8) in the mult bar with gold highlighting.
+
 ### Beat indicator
 
 A pulsing circle at approximately `x=210, y=FL_HIT_Y` (left of the highway). Phase-locked to notes:
@@ -400,7 +461,7 @@ const phase = ((nowMs - streamAnchorMs) % stepMs + stepMs) % stepMs;
 const pulse = clamp(1 - phase / (stepMs * 0.3), 0, 1);
 ```
 
-At pulse=1 (beat moment): circle radius ~23px, full brightness, radial glow. Decays over 30% of the step interval. Color matches active difficulty color.
+At pulse=1 (beat moment): circle radius ~25px, full brightness, radial glow, plus a ghost ring that expands outward as the pulse decays. Decays over 30% of the step interval. Color matches active difficulty color.
 
 ### Keyboard visualization
 
@@ -426,10 +487,10 @@ Before the game, show a setup panel with:
 - Audio file picker (local file, stored in `audioEl.src`)
 - BPM input (number, 40–300)
 - Offbeat toggle (checkbox — shifts grid by `beatMs/2`)
-- Audio offset calibration: button opens a modal that plays a Web Audio API click track at the entered BPM, records 8 taps, computes `audioOffset = -median(tapTime - nearestBeatTime)`
+- Audio offset calibration: button opens a modal that plays a Web Audio API click track at 80 BPM, records 10 taps, computes `audioOffset = median(tapTime - nearestBeatTime)` (positive = user taps late = shift hit window forward)
 - Manual audio offset slider (±150 ms)
-- Mode selector: three cards — Straight Keys, Shifty Keys, Spacey Keys
-- Difficulty selector: four buttons — Easy, Medium, Hard, Expert (each color-coded green/blue/orange/red)
+- Mode selector: three cards — Straight Keys, Shifty Keys, Spacey Keys. Shifty carries a faint orange ambient glow (`rgba(255,221,85,0.09)`) even when unselected; Spacey carries faint purple (`rgba(204,136,255,0.09)`).
+- Difficulty selector: four buttons — Easy, Medium, Hard, Expert (each color-coded green/blue/orange/red). Each button has a faint per-color ambient glow (`box-shadow`) even when unselected, using `data-diff` CSS selectors.
 - Number Keys % input (default 5)
 - Start button (disabled until audio is loaded)
 

@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HotKeyS</title>
+  <title>Tympo</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      background: #07070f;
+      background: #03030c;
       color: #fff;
       font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
       min-height: 100vh;
@@ -47,6 +47,8 @@
       margin-bottom: 32px;
       letter-spacing: 0.04em;
     }
+    .brand-ty  { color: rgba(255,255,255,0.8); font-weight: 800; }
+    .brand-mpo { color: rgba(200,160,255,0.85); font-weight: 800; }
 
     .form-group { margin-bottom: 20px; }
 
@@ -114,10 +116,35 @@
     }
     .tap-btn:active { background: rgba(85,153,255,0.28); }
 
+    /* Tap BPM — circular, echoes the in-game beat indicator */
+    #tapBpmBtn {
+      width: 56px;
+      height: 56px;
+      flex: none;
+      padding: 0;
+      border-radius: 50%;
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1px;
+      font-size: 0.72rem;
+      background: rgba(85,153,255,0.08);
+      border: 1.5px solid rgba(85,153,255,0.35);
+      box-shadow: 0 0 14px 3px rgba(85,153,255,0.12);
+      transition: background 0.1s, box-shadow 0.1s;
+    }
+    #tapBpmBtn:active {
+      background: rgba(85,153,255,0.28);
+      box-shadow: 0 0 22px 6px rgba(85,153,255,0.28);
+    }
+    #tapBpmBtn .tap-label  { font-size: 0.78rem; font-weight: 800; line-height: 1; }
+    #tapBpmBtn .tap-sub    { font-size: 0.55rem; font-weight: 600; opacity: 0.55; line-height: 1; letter-spacing: 0.06em; }
+
     /* Mode cards */
     .mode-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(4, 1fr);
       gap: 10px;
     }
 
@@ -142,6 +169,20 @@
     .mode-card[data-mode="shifty"].active  .mc-name { color: #ffdd55; }
     .mode-card[data-mode="spacey"].active  { border-color: #cc88ff; background: rgba(204,136,255,0.08); }
     .mode-card[data-mode="spacey"].active  .mc-name { color: #cc88ff; }
+
+    .mode-card[data-mode="wordy"].active  { border-color: #44ddff; background: rgba(68,221,255,0.08); }
+    .mode-card[data-mode="wordy"].active  .mc-name { color: #44ddff; }
+
+    /* Ambient glow on unselected mode cards */
+    .mode-card[data-mode="shifty"]:not(.active) { border-color: rgba(255,221,85,0.18); box-shadow: 0 0 14px 3px rgba(255,221,85,0.09); }
+    .mode-card[data-mode="spacey"]:not(.active) { border-color: rgba(204,136,255,0.18); box-shadow: 0 0 14px 3px rgba(204,136,255,0.09); }
+    .mode-card[data-mode="wordy"]:not(.active)  { border-color: rgba(68,221,255,0.18);  box-shadow: 0 0 14px 3px rgba(68,221,255,0.09);  }
+
+    /* Ambient glow on unselected difficulty buttons */
+    .diff-btn[data-diff="easy"]:not(.active)   { border-color: rgba(85,255,153,0.2);  box-shadow: 0 0 10px 2px rgba(85,255,153,0.1);  }
+    .diff-btn[data-diff="medium"]:not(.active) { border-color: rgba(85,153,255,0.2);  box-shadow: 0 0 10px 2px rgba(85,153,255,0.1);  }
+    .diff-btn[data-diff="hard"]:not(.active)   { border-color: rgba(255,170,68,0.2);  box-shadow: 0 0 10px 2px rgba(255,170,68,0.1);  }
+    .diff-btn[data-diff="expert"]:not(.active) { border-color: rgba(255,85,119,0.2);  box-shadow: 0 0 10px 2px rgba(255,85,119,0.1);  }
 
     /* Difficulty selector */
     .diff-grid {
@@ -205,7 +246,7 @@
       position: fixed;
       inset: 0;
       display: none;
-      background: #07070f;
+      background: #03030c;
       overflow: hidden;
     }
     #gameCanvas {
@@ -394,8 +435,8 @@
 
 <!-- ════════ SETUP ════════ -->
 <div id="setupScreen">
-  <h1>HotKeyS</h1>
-  <p class="subtitle">rhythm typing — every keystroke on the beat</p>
+  <h1>Tympo</h1>
+  <p class="subtitle"><span class="brand-ty">TY</span>pe on te<span class="brand-mpo">MPO</span> — each keystroke on the whole, half, quarter &amp; eighth-note beat</p>
 
   <div class="form-group" id="fgMusic">
     <label class="form-label">Music File</label>
@@ -403,10 +444,10 @@
   </div>
 
   <div class="form-group" id="fgBpm">
-    <label class="form-label">BPM <span style="color:rgba(255,255,255,0.18);font-size:0.62rem;text-transform:none;letter-spacing:0;font-weight:400">(tap to detect · ←→ to nudge)</span></label>
-    <div class="bpm-row">
+    <label class="form-label">BPM <span style="color:rgba(255,255,255,0.18);font-size:0.62rem;text-transform:none;letter-spacing:0;font-weight:400">(tap button to detect · ←→ to nudge)</span></label>
+    <div class="bpm-row" style="align-items:center">
       <input type="number" id="bpmInput" value="120" min="40" max="300" step="1">
-      <button class="tap-btn" id="tapBpmBtn">Tap BPM</button>
+      <button class="tap-btn" id="tapBpmBtn"><span class="tap-label">TAP</span><span class="tap-sub">BPM</span></button>
     </div>
   </div>
 
@@ -446,6 +487,11 @@
         <div class="mc-name">Spacey Keys</div>
         <div class="mc-desc">Space bar between every note on the offbeat</div>
       </div>
+      <div class="mode-card" data-mode="wordy">
+        <div class="mc-icon">📝</div>
+        <div class="mc-name">Wordy Keys</div>
+        <div class="mc-desc">Type whole words — letter by letter on the beat</div>
+      </div>
     </div>
   </div>
 
@@ -468,7 +514,7 @@
 
 <!-- ════════ GAME ════════ -->
 <div id="gameScreen">
-  <canvas id="gameCanvas" width="900" height="720"></canvas>
+  <canvas id="gameCanvas" width="900" height="800"></canvas>
   <div id="pauseOverlay">
     <h2>PAUSED</h2>
     <p class="pause-hint">Esc to resume</p>
@@ -525,9 +571,9 @@
 //  CONSTANTS
 // ═══════════════════════════════════════════════════════════
 
-const CW = 900, CH = 720;
+const CW = 900, CH = 800;
 
-// ── HotKeyS (multi-lane) highway geometry ──────────────────
+// ── Tympo (multi-lane) highway geometry ──────────────────
 const HWY_TOP    = 70;
 const HIT_ZONE_Y = 480;
 const HWY_H      = HIT_ZONE_Y - HWY_TOP;
@@ -538,12 +584,12 @@ const LANE_COUNT = 4;
 
 // ── Straight / Shifty lane geometry (perspective, GH-style) ─
 const FL_TOP    = 70;    // matches HWY_TOP for visual consistency
-const FL_HIT_Y  = 480;   // matches HIT_ZONE_Y
+const FL_HIT_Y  = 560;
 const FL_H      = FL_HIT_Y - FL_TOP;
 const FL_TOP_W  = 120;   // highway width at vanishing point (narrow)
-const FL_BOT_W  = 380;   // highway width at hit zone (Guitar Hero scale)
+const FL_BOT_W  = 420;   // highway width at hit zone
 
-// ── Lane colors (HotKeyS) ────────────────────────────────
+// ── Lane colors (Tympo) ────────────────────────────────
 const LANES = [
   { name: 'No Mod', short: 'None',  color: '#5599ff' },
   { name: 'Shift',  short: 'Shift', color: '#55ff99' },
@@ -578,6 +624,144 @@ const KB_STEP_Y = KB_KEY_H + KB_GAP_Y;   // 21
 // Left-pinned: sits in the left margin beside the highway
 const KB_LEFT   = 12;
 
+// ── Wordy Keys dictionary ─────────────────────────────────
+// Words are curated per difficulty — shorter+common → longer+rare
+const WORDY_DICT = {
+  easy: [
+    'cat','dog','sun','run','big','red','sky','map','key','hat',
+    'cup','fan','car','win','joy','old','new','far','top','way',
+    'sit','see','get','put','ask','let','try','eat','fly','buy',
+    'say','use','bed','cut','end','fit','fix','got','ice','led',
+    'lot','mad','mud','net','odd','off','one','out','own','pop',
+    'raw','sad','saw','sea','set','sir','six','ten','tie','tin',
+    'van','war','wet','wow','yet','ago','aim','ant','bay','cob',
+    'den','dew','dim','dot','dry','egg','elm','fig','fog','gem',
+    'gut','hay','hen','hug','hum','hut','ink','ivy','jam','kit',
+    'lap','leg','lid','lip','log','mug','nod','oak','oat','pod',
+  ],
+  medium: [
+    'about','above','after','again','alone','basic','black','brave',
+    'break','bring','catch','chair','chase','check','chess','child',
+    'clean','clear','climb','clock','close','cloud','color','count',
+    'cover','dance','depth','drink','drive','eagle','early','earth',
+    'eight','empty','every','extra','false','fancy','field','fight',
+    'final','first','fixed','flame','flash','float','floor','focus',
+    'force','found','fresh','front','funny','ghost','glass','grace',
+    'grand','great','green','greet','grind','guide','happy','harsh',
+    'heart','heavy','hello','honor','human','image','index','inner',
+    'judge','juice','known','large','laser','later','laugh','layer',
+    'learn','leave','level','light','limit','local','logic','lower',
+    'lucky','magic','major','march','match','media','might','model',
+    'money','month','motor','mount','music','night','noble','north',
+    'ocean','offer','order','outer','paint','paper','party','patch',
+    'pause','peace','phase','photo','pilot','pixel','place','plain',
+    'plane','plant','plate','point','power','price','pride','prime',
+    'print','prize','proof','proud','pulse','punch','queen','quick',
+    'quiet','quote','raise','range','rapid','realm','remix','right',
+    'risky','rival','robot','round','royal','scale','scene','score',
+    'scout','sense','serve','seven','shade','shake','shape','share',
+    'sharp','shift','shine','shore','short','sight','skill','sleep',
+    'slice','slide','slope','small','smart','smile','smoke','solar',
+    'solid','sorry','south','space','spark','speed','spend','sport',
+    'stack','stage','stark','start','state','steam','steel','stick',
+    'still','stock','stone','store','storm','story','style','sugar',
+    'super','surge','sweet','swift','sword','table','taste','teach',
+    'think','tiger','tired','title','today','total','touch','tower',
+    'track','trail','train','trick','trust','truth','under','union',
+    'until','upper','upset','valid','value','verse','video','voice',
+    'whole','world','worth','would','youth','zebra','zippy','zonal',
+  ],
+  hard: [
+    'absent','accent','accord','active','actual','adjust','admire',
+    'advice','aerial','affect','affirm','afford','agenda','allied',
+    'allure','ancient','answer','anthem','antique','argued','around',
+    'arrest','arrive','aspect','assign','assist','astral','atomic',
+    'autumn','beacon','because','became','become','believe','beneath',
+    'benefit','beyond','binary','borrow','bridge','bright','broken',
+    'bronze','brutal','budget','causal','chance','channel','choose',
+    'chrome','cipher','circle','circus','clarify','classic','clever',
+    'client','closure','coerce','column','combat','command','commit',
+    'compare','comply','conceal','concept','concern','connect','convey',
+    'correct','cosmos','covert','crafty','create','critic','crucial',
+    'culture','custom','damage','danger','decade','defeat','defend',
+    'define','deliver','demand','design','detail','devote','differ',
+    'direct','divide','domain','dynamic','effect','effort','embark',
+    'emerge','encode','endure','energy','engage','ensure','entire',
+    'escape','excite','expand','expert','extend','extreme','fabric',
+    'factor','famous','figure','filter','finish','formal','format',
+    'foster','galaxy','gather','garner','gentle','gravel','harbor',
+    'hardly','hazard','health','hidden','higher','humane','impact',
+    'import','income','indeed','induce','inform','inject','insist',
+    'invest','ironic','island','jungle','keeper','knight','launch',
+    'leader','lesson','liquid','listen','lively','manage','manner',
+    'market','master','matter','measure','medium','mental','mentor',
+    'method','mirror','mobile','modest','module','monkey','morale',
+    'narrow','nature','object','obtain','oppose','outlet','palace',
+    'parent','percent','person','pillar','planet','ponder','portal',
+    'posture','prefer','pretty','prevent','process','profit','project',
+    'protect','provide','public','purple','pursue','random','reason',
+    'recent','reduce','reform','regard','relate','remind','remote',
+    'remove','repair','repeat','replace','report','rescue','result',
+    'retain','reveal','review','revive','rhythm','rotate','sample',
+    'second','secret','sector','secure','select','sensor','server',
+    'settle','signal','silver','simple','single','skills','social',
+    'source','spring','stable','strict','string','strong','studio',
+    'submit','sunset','supply','switch','system','target','tender',
+    'throne','timber','toggle','toward','travel','triple','trophy',
+    'tunnel','twelve','twenty','unique','unlock','update','urgent',
+    'useful','valley','vector','vendor','verbal','verify','vessel',
+    'viable','victim','virtue','visual','volume','wander','wealth',
+    'weapon','weekly','weight','winter','wisdom','wonder','yearly',
+  ],
+  expert: [
+    'abnormal','absolute','abundant','academic','accepted','accurate',
+    'adjacent','advanced','affinity','allegory','alliance','allocate',
+    'ambition','analysis','annotate','apparent','archival','ascending',
+    'asymmetric','attentive','attribute','authentic','backdrop','balanced',
+    'benchmark','bilateral','broadcast','calculate','calibrate','capacity',
+    'cardinal','celestial','challenge','character','chronicle','classify',
+    'coherence','cohesion','collapse','colonize','combined','competent',
+    'composed','concentric','conclude','confident','conflict','consensus',
+    'construct','contained','continue','contrast','converge','convince',
+    'correlate','criterion','currency','cylinder','database','dedicated',
+    'deployed','detailed','dimension','dominant','duplicate','efficient',
+    'elevation','eliminate','emphasis','empirical','endurance','energize',
+    'enumerate','equation','establish','evaluate','evidence','exception',
+    'extensive','external','facility','formalize','framework','frequent',
+    'generate','geometric','guidance','heritage','hierarchy','holistic',
+    'honeycomb','identify','ignorance','implement','implicit','incident',
+    'inclusive','indicator','inherent','innovate','insignia','instance',
+    'integral','internal','ironclad','isolated','junction','language',
+    'latitude','legendary','leverage','location','logarithm','luminance',
+    'magnitude','mainframe','manifest','maritime','maximize','mechanism',
+    'memorial','momentum','monolith','monotonic','multiform','negative',
+    'negligent','objective','observant','occasion','organize','original',
+    'overflow','overhaul','paradox','parallel','parameter','permeable',
+    'pervasive','platform','predicate','principal','procedure','profound',
+    'prominent','prototype','provision','radiant','rational','redefine',
+    'resilient','resonance','resultant','retention','rigorous','seasonal',
+    'sensitive','sequence','simplify','simulate','singular','solution',
+    'spectrum','stabilize','structure','systematic','technical','terminal',
+    'threshold','timeline','tradition','transient','translate','transport',
+    'ultimate','uniform','upstream','validity','variable','velocity',
+    'vertical','virtuoso','volatile','warehouse','waveform','weathered',
+    'wholesome','workforce','zealotry',
+  ],
+};
+
+// Shuffled word queue for Wordy mode — re-seeded each game
+let wordyQueue = [];
+let wordyQueueIdx = 0;
+
+function wordyNextWord() {
+  if (wordyQueueIdx >= wordyQueue.length) {
+    // Reshuffle and continue
+    wordyQueue = [...WORDY_DICT[difficulty]].sort(() => Math.random() - 0.5);
+    wordyQueueIdx = 0;
+  }
+  return wordyQueue[wordyQueueIdx++];
+}
+
 // ── Ctrl+key combos that interfere with the browser ───────
 const CTRL_BLACKLIST = new Set([
   'w','t','n','r','f','h','d','l','k','p','s','o','u','j',
@@ -597,7 +781,7 @@ const DIFFICULTY_DEFS = {
 const DIFF_KEYS = ['easy','medium','hard','expert'];
 
 const POWERUPS = {
-  ArrowUp:    { type:'double',    label:'DOUBLE DOWN', color:'#ffdd55', icon:'↑', duration:10000 },
+  ArrowUp:    { type:'double',    label:'×2',          color:'#ffdd55', icon:'↑', duration:10000 },
   ArrowRight: { type:'allP',      label:'P-P-P-P',     color:'#55ffcc', icon:'→', duration:8000  },
   ArrowDown:  { type:'hacker',    label:'HACKER MODE', color:'#55ff99', icon:'↓', duration:5000  },
   ArrowLeft:  { type:'autopilot', label:'AUTOPILOT',   color:'#ff88cc', icon:'←', duration:10000 },
@@ -635,6 +819,11 @@ let resultsFocusIdx= 0;
 let numericPct     = 5;  // % of notes that are digits (0–100)
 let audioEl      = null;
 let songDuration = 0;
+let gameAudioCtx   = null;
+let gameAnalyser   = null;
+let gameFreqData   = null;
+let analyserSrcEl  = null; // which audioEl the analyser is connected to
+let wmpPeaks       = null; // per-bar peak heights for WMP-style fall-off
 let songTitle    = '';
 let bpm          = 120;
 let countdownVal = 3;
@@ -718,18 +907,34 @@ function generateNotes() {
   streamAnchorMs = snappedLeadIn + offbeatShift;
   let t = streamAnchorMs;
 
-  while (t < songEnd) {
-    const char       = pickChar();
-    const needsShift = mode === 'shifty' && Math.random() < DIFFICULTY_DEFS[difficulty].shiftPct;
-    result.push({ id: id++, char, lane: 0, hitTime: t, state: 'active', needsShift });
+  if (mode === 'wordy') {
+    // Reset word queue at game start
+    wordyQueue = [...WORDY_DICT[difficulty]].sort(() => Math.random() - 0.5);
+    wordyQueueIdx = 0;
 
-    if (mode === 'spacey') {
-      const spaceTime = t + stepMs / 2;
-      if (spaceTime < songEnd)
-        result.push({ id: id++, char: ' ', lane: 0, hitTime: spaceTime, state: 'active', needsShift: false });
+    while (t < songEnd) {
+      const word = wordyNextWord();
+      result.push({
+        id: id++, word, letterIdx: 0,
+        char: word[0],          // char = first letter (used for keyboard glow)
+        lane: 0, hitTime: t, state: 'active', needsShift: false,
+      });
+      t += stepMs;
     }
+  } else {
+    while (t < songEnd) {
+      const char       = pickChar();
+      const needsShift = mode === 'shifty' && Math.random() < DIFFICULTY_DEFS[difficulty].shiftPct;
+      result.push({ id: id++, char, lane: 0, hitTime: t, state: 'active', needsShift });
 
-    t += stepMs;
+      if (mode === 'spacey') {
+        const spaceTime = t + stepMs / 2;
+        if (spaceTime < songEnd)
+          result.push({ id: id++, char: ' ', lane: 0, hitTime: spaceTime, state: 'active', needsShift: false });
+      }
+
+      t += stepMs;
+    }
   }
 
   result.sort((a, b) => a.hitTime - b.hitTime);
@@ -767,7 +972,7 @@ document.addEventListener('keydown', e => {
         e.preventDefault();
         if (menuSection === 1) { bpm = Math.max(40, bpm - 1); document.getElementById('bpmInput').value = bpm; }
         if (menuSection === 3) { audioOffset = Math.max(-150, audioOffset - 5); document.getElementById('audioOffsetInput').value = audioOffset; }
-        if (menuSection === 4) applyMenuMode((menuModeIdx + 2) % 3);
+        if (menuSection === 4) applyMenuMode((menuModeIdx + MENU_MODES.length - 1) % MENU_MODES.length);
         if (menuSection === 5) applyDifficulty(DIFF_KEYS[(DIFF_KEYS.indexOf(difficulty) + 3) % 4]);
         if (menuSection === 6) { numericPct = Math.max(0, numericPct - 1); document.getElementById('numPctInput').value = numericPct; }
         return;
@@ -776,7 +981,7 @@ document.addEventListener('keydown', e => {
         e.preventDefault();
         if (menuSection === 1) { bpm = Math.min(300, bpm + 1); document.getElementById('bpmInput').value = bpm; }
         if (menuSection === 3) { audioOffset = Math.min(150, audioOffset + 5); document.getElementById('audioOffsetInput').value = audioOffset; }
-        if (menuSection === 4) applyMenuMode((menuModeIdx + 1) % 3);
+        if (menuSection === 4) applyMenuMode((menuModeIdx + 1) % MENU_MODES.length);
         if (menuSection === 5) applyDifficulty(DIFF_KEYS[(DIFF_KEYS.indexOf(difficulty) + 1) % 4]);
         if (menuSection === 6) { numericPct = Math.min(100, numericPct + 1); document.getElementById('numPctInput').value = numericPct; }
         return;
@@ -854,6 +1059,12 @@ document.addEventListener('keydown', e => {
 
   keyPressMap[key] = performance.now();
 
+  if (mode === 'wordy') {
+    if (e.shiftKey || e.ctrlKey || e.altKey) return;
+    processHitWordy(key);
+    return;
+  }
+
   if (mode === 'shifty') {
     if (e.ctrlKey || e.altKey) return;
     processHitFlat(key, e.shiftKey);
@@ -920,7 +1131,64 @@ function processHitFlat(char, shiftHeld) {
   laneFlash[0] = 1.0;
 }
 
-// HotKeyS hit processing
+// Wordy Keys hit processing — letter-by-letter on the current active word
+function processHitWordy(char) {
+  const nowMs = audioEl.currentTime * 1000 + audioOffset;
+
+  // Find the current word note: the active note nearest to (and past) the hit zone
+  const active = notes.filter(n => n.state === 'active' && n.word);
+  if (!active.length) return;
+
+  // The "current" word is the one whose hitTime is closest to nowMs from behind,
+  // or the soonest upcoming one if nothing has arrived yet.
+  const behind  = active.filter(n => nowMs >= n.hitTime - hitWindows().ok);
+  const current = behind.length
+    ? behind.reduce((a, b) => Math.abs(nowMs - a.hitTime) <= Math.abs(nowMs - b.hitTime) ? a : b)
+    : active[0];
+
+  const expected = current.word[current.letterIdx];
+  if (char !== expected) {
+    // Wrong key — flash error but no miss scored here
+    spawnFx(CW / 2, FL_HIT_Y - 22, '✕', '#ff5577');
+    return;
+  }
+
+  // Correct letter
+  current.letterIdx++;
+  keyPressMap[char] = performance.now();
+
+  // Score this letter as a hit
+  const { perfect: pw, good: gw } = hitWindows();
+  const elapsed = nowMs - current.hitTime;
+  const perLetterMs = Math.max(100, getStreamStepMs() / current.word.length);
+  const expectedElapsed = current.letterIdx * perLetterMs;
+  const diff = Math.abs(elapsed - expectedElapsed);
+  let grade, pts;
+  if (diff <= pw)      { grade = 'Perfect'; pts = 100; perfects++; }
+  else if (diff <= gw) { grade = 'Good';    pts = 75;  goods++;    }
+  else                 { grade = 'OK';      pts = 50;  oks++;      }
+  combo++;
+  maxCombo = Math.max(maxCombo, combo);
+  score += pts * multiplier();
+  if (combo % 12 === 0 && powerupCharge === 0 && !activePowerup) powerupCharge = 1;
+
+  spawnFx(CW / 2, FL_HIT_Y - 22, grade, '#44ddff');
+  spawnParticles(CW / 2, FL_HIT_Y, '#44ddff', grade === 'Perfect' ? 14 : 8);
+  laneFlash[0] = 0.85;
+
+  // Update note's char to the next letter (for keyboard glow)
+  if (current.letterIdx < current.word.length) {
+    current.char = current.word[current.letterIdx];
+  } else {
+    // Word complete — mark hit and register high-score points bonus
+    current.state = 'hit';
+    current.hitGrade = grade;
+    score += 50 * multiplier(); // word-completion bonus
+    spawnFx(CW / 2, FL_HIT_Y - 50, current.word.toUpperCase() + '!', '#44ddff');
+  }
+}
+
+// Tympo hit processing
 function processHitLane(lane, char) {
   const nowMs = audioEl.currentTime * 1000 + audioOffset;
   const { perfect:pw, good:gw, ok:ow } = hitWindows();
@@ -989,6 +1257,19 @@ function checkMisses(nowMs) {
   for (const n of notes) {
     if (n.state !== 'active') continue;
     const dt = nowMs - n.hitTime;
+
+    if (n.word) {
+      // Wordy mode: deadline extends by 180ms per remaining letter
+      const remaining   = n.word.length - n.letterIdx;
+      const deadline    = ow + remaining * 180;
+      if (dt <= deadline) continue;
+      // Each untyped letter = one miss
+      for (let i = 0; i < remaining; i++) { misses++; combo = 0; }
+      n.state = 'missed';
+      spawnFx(CW / 2, FL_HIT_Y - 22, 'Miss', '#ff5577');
+      continue;
+    }
+
     // Autopilot: auto-score any note that just crossed the hit line
     if (activePowerup?.type === 'autopilot' && dt > 0 && dt <= ow) {
       autoScoreNote(n);
@@ -1055,7 +1336,7 @@ function drawFrame(nowMs) {
   const px = canvasScale * canvasDpr;
   ctx.setTransform(px, 0, 0, px, 0, 0);
   ctx.clearRect(0, 0, CW, CH);
-  ctx.fillStyle = '#07070f';
+  ctx.fillStyle = '#03030c';
   ctx.fillRect(0, 0, CW, CH);
   drawScanlines();
 
@@ -1066,6 +1347,7 @@ function drawFrame(nowMs) {
   }
 
   drawFlatBackground();
+  drawStageFloor();
   drawFlatHitboxes();
   drawFlatGuides();
   drawFlatNotes(nowMs);
@@ -1074,6 +1356,7 @@ function drawFrame(nowMs) {
   drawNextNote();
   drawMultBar();
   drawKeyboard(nowMs);
+  drawWaveform();
   drawBeatIndicator(nowMs);
   drawPowerupOverlay(nowMs);
   drawHUD(nowMs);
@@ -1091,7 +1374,7 @@ function drawScanlines() {
 }
 
 // ═══════════════════════════════════════════════════════════
-//  RENDERING — HotKeyS highway
+//  RENDERING — Tympo highway
 // ═══════════════════════════════════════════════════════════
 
 function hBounds(y) {
@@ -1242,35 +1525,44 @@ function drawHwyHitZone() {
 
 function drawFlatBackground() {
   const tb = flatHBounds(FL_TOP), bb = flatHBounds(FL_HIT_Y);
+
+  // Deep indigo → electric navy highway fill
   const grad = ctx.createLinearGradient(0, FL_TOP, 0, FL_HIT_Y);
-  grad.addColorStop(0, '#07071a'); grad.addColorStop(1, '#0a0a22');
+  grad.addColorStop(0,   '#04041a');
+  grad.addColorStop(0.5, '#07071e');
+  grad.addColorStop(1,   '#0c0c2c');
   ctx.beginPath();
   ctx.moveTo(tb.sx, FL_TOP); ctx.lineTo(tb.sx+tb.w, FL_TOP);
   ctx.lineTo(bb.sx+bb.w, FL_HIT_Y); ctx.lineTo(bb.sx, FL_HIT_Y);
   ctx.closePath(); ctx.fillStyle = grad; ctx.fill();
 
-  // Edge lines
+  // Glowing edge lines — brighter toward the hit zone
   ctx.save();
-  ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(tb.sx, FL_TOP); ctx.lineTo(bb.sx, FL_HIT_Y); ctx.stroke();
+  const edgeG = ctx.createLinearGradient(0, FL_TOP, 0, FL_HIT_Y);
+  edgeG.addColorStop(0, 'rgba(180,190,255,0.12)');
+  edgeG.addColorStop(1, 'rgba(180,190,255,0.55)');
+  ctx.strokeStyle = edgeG;
+  ctx.lineWidth = 1.5;
+  ctx.shadowColor = 'rgba(100,120,255,0.55)';
+  ctx.shadowBlur = 8;
+  ctx.beginPath(); ctx.moveTo(tb.sx,     FL_TOP); ctx.lineTo(bb.sx,     FL_HIT_Y); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(tb.sx+tb.w, FL_TOP); ctx.lineTo(bb.sx+bb.w, FL_HIT_Y); ctx.stroke();
   ctx.restore();
 
   // Horizon fade
-  const mb = flatHBounds(FL_TOP + 80);
-  const fadeG = ctx.createLinearGradient(0, FL_TOP, 0, FL_TOP+80);
-  fadeG.addColorStop(0, '#07070f'); fadeG.addColorStop(1, 'transparent');
+  const mb = flatHBounds(FL_TOP + 90);
+  const fadeG = ctx.createLinearGradient(0, FL_TOP, 0, FL_TOP + 90);
+  fadeG.addColorStop(0, '#04040e'); fadeG.addColorStop(1, 'transparent');
   ctx.fillStyle = fadeG;
   ctx.beginPath();
   ctx.moveTo(tb.sx, FL_TOP); ctx.lineTo(tb.sx+tb.w, FL_TOP);
-  ctx.lineTo(mb.sx+mb.w, FL_TOP+80); ctx.lineTo(mb.sx, FL_TOP+80);
+  ctx.lineTo(mb.sx+mb.w, FL_TOP+90); ctx.lineTo(mb.sx, FL_TOP+90);
   ctx.closePath(); ctx.fill();
 }
 
 function drawFlatGuides() {
-  // Perspective-converging guide lines at each key position
   ctx.save();
-  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  ctx.strokeStyle = 'rgba(50,75,210,0.06)';
   ctx.lineWidth = 1;
   const tb = flatHBounds(FL_TOP + 80), bb = flatHBounds(FL_HIT_Y);
   for (const pos of Object.values(KEY_POS)) {
@@ -1298,6 +1590,52 @@ function drawFlatNotes(nowMs) {
 }
 
 function drawFlatNote(note, sy) {
+  // ── Wordy mode: word banner falling down the highway ────────
+  if (note.word) {
+    const { sx, w } = flatHBounds(sy);
+    const depth = clamp((sy - FL_TOP) / FL_H, 0, 1);
+    const nH  = 6 + depth * 22;
+    const col = '#44ddff';
+
+    ctx.save();
+    ctx.shadowColor = col; ctx.shadowBlur = 6 + depth * 16;
+    const fg = ctx.createLinearGradient(sx, sy - nH, sx, sy);
+    fg.addColorStop(0, lighten(col, 0.35)); fg.addColorStop(1, darken(col, 0.3));
+    rrect(ctx, sx, sy - nH, w, nH, 4); ctx.fillStyle = fg; ctx.fill();
+    ctx.restore();
+
+    // Letter-by-letter text on the note (visible once it's big enough)
+    if (depth > 0.3 && nH >= 10) {
+      const fs    = Math.floor(5 + depth * 13);
+      const word  = note.word;
+      const typed = note.letterIdx;
+      const totalW = w * 0.84;
+      const charW  = totalW / word.length;
+      const startX = sx + (w - totalW) / 2;
+
+      ctx.save();
+      ctx.font = `bold ${fs}px "Consolas",monospace`;
+      ctx.textBaseline = 'middle';
+      for (let i = 0; i < word.length; i++) {
+        const lx = startX + (i + 0.5) * charW;
+        if (i < typed) {
+          ctx.fillStyle = 'rgba(0,0,0,0.45)';   // typed: dim
+        } else if (i === typed) {
+          ctx.fillStyle = '#ffffff';              // next: bright
+          ctx.shadowColor = '#fff'; ctx.shadowBlur = 6;
+        } else {
+          ctx.fillStyle = 'rgba(7,7,15,0.75)';  // remaining: dark
+          ctx.shadowBlur = 0;
+        }
+        ctx.textAlign = 'center';
+        ctx.fillText(word[i].toUpperCase(), lx, sy - nH / 2);
+        ctx.shadowBlur = 0;
+      }
+      ctx.restore();
+    }
+    return;
+  }
+
   // Space bar note: a wide bar spanning the full highway width
   if (note.char === ' ') {
     const { sx, w } = flatHBounds(sy);
@@ -1321,14 +1659,14 @@ function drawFlatNote(note, sy) {
 
   const depth = clamp((sy - FL_TOP) / FL_H, 0, 1);
   const sx  = flatNoteX(note.char, sy);
-  const nW  = 16 + depth * 24;  // 16px at top → 40px at bottom
-  const nH  = 12 + depth * 28;  // 12px at top → 40px at bottom
+  const nW  = 16 + depth * 24;
+  const nH  = 12 + depth * 28;
   const r   = clamp(depth * 9, 2, 9);
   const nX  = sx - nW/2, nY = sy - nH;
   const col = note.needsShift ? '#ffaa44' : '#55ff99';
 
   ctx.save();
-  ctx.shadowColor = col; ctx.shadowBlur = 6 + depth * 16;
+  ctx.shadowColor = col; ctx.shadowBlur = 8 + depth * 20;
   const fg = ctx.createLinearGradient(nX, nY, nX, sy);
   fg.addColorStop(0, lighten(col, 0.45)); fg.addColorStop(0.5, col); fg.addColorStop(1, darken(col, 0.3));
   rrect(ctx, nX, nY, nW, nH, r); ctx.fillStyle = fg; ctx.fill();
@@ -1351,21 +1689,92 @@ function drawFlatNote(note, sy) {
 
 function drawFlatHitZone() {
   const { sx, w } = flatHBounds(FL_HIT_Y);
+  const diffCol = DIFFICULTY_DEFS[difficulty].color;
+  const flash   = laneFlash[0];
+
+  // Wide ambient bloom beneath the line (pulses with hits)
+  const bloomAlpha = 0.10 + flash * 0.18;
+  const bloomG = ctx.createLinearGradient(0, FL_HIT_Y - 48, 0, FL_HIT_Y + 8);
+  bloomG.addColorStop(0, diffCol + '00');
+  bloomG.addColorStop(0.7, diffCol + Math.round(bloomAlpha * 255).toString(16).padStart(2,'0'));
+  bloomG.addColorStop(1,   diffCol + '00');
+  ctx.fillStyle = bloomG;
+  ctx.fillRect(sx - 12, FL_HIT_Y - 48, w + 24, 56);
+
   ctx.save();
-  ctx.shadowColor = 'rgba(200,220,255,0.7)'; ctx.shadowBlur = 12;
-  ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(sx, FL_HIT_Y); ctx.lineTo(sx+w, FL_HIT_Y); ctx.stroke();
+
+  // Glow line — difficulty color
+  ctx.shadowColor = diffCol;
+  ctx.shadowBlur  = 18 + flash * 20;
+  ctx.strokeStyle = diffCol;
+  ctx.lineWidth   = 2;
+  ctx.globalAlpha = 0.75 + flash * 0.25;
+  ctx.beginPath(); ctx.moveTo(sx, FL_HIT_Y); ctx.lineTo(sx + w, FL_HIT_Y); ctx.stroke();
+
+  // Bright white core
+  ctx.shadowBlur  = 4;
+  ctx.strokeStyle = `rgba(255,255,255,${0.55 + flash * 0.4})`;
+  ctx.lineWidth   = 1;
+  ctx.beginPath(); ctx.moveTo(sx, FL_HIT_Y); ctx.lineTo(sx + w, FL_HIT_Y); ctx.stroke();
+
   ctx.restore();
 
-  if (mode === 'shifty' || mode === 'spacey') {
-    ctx.save();
-    ctx.font = '11px "Segoe UI"'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-    ctx.fillStyle = mode === 'shifty' ? 'rgba(255,170,68,0.45)' : 'rgba(204,136,255,0.45)';
-    ctx.fillText(mode === 'shifty' ? 'hold ⇧ for orange notes' : 'press ␣ between notes', CW/2, FL_HIT_Y + 10);
-    ctx.restore();
-  }
 }
 
+
+// ─── Stage floor (below hit zone) ───────────────────────────
+
+function drawStageFloor() {
+  const { sx, w } = flatHBounds(FL_HIT_Y);
+  const floorH = CH - FL_HIT_Y;
+  const maxGrid = Math.min(floorH * 0.62, 150);
+
+  // Dark panel
+  const bg = ctx.createLinearGradient(0, FL_HIT_Y, 0, CH);
+  bg.addColorStop(0,   '#0a0a2c');
+  bg.addColorStop(0.4, '#050518');
+  bg.addColorStop(1,   '#020209');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, FL_HIT_Y, CW, floorH);
+
+  // Mode / powerup ambient glow pool
+  const modeColor = activePowerup ? activePowerup.color
+    : mode === 'shifty' ? '#ffdd55'
+    : mode === 'spacey' ? '#cc88ff'
+    : '#5599ff';
+  const glow = ctx.createRadialGradient(CW / 2, FL_HIT_Y, 0, CW / 2, FL_HIT_Y, w * 0.8);
+  glow.addColorStop(0, modeColor + '28');
+  glow.addColorStop(1, modeColor + '00');
+  ctx.fillStyle = glow;
+  ctx.fillRect(sx - 40, FL_HIT_Y, w + 80, Math.min(floorH * 0.65, 160));
+
+  // Perspective floor grid
+  ctx.save();
+  const vx = CW / 2;
+
+  // Horizontal lines — dense near hit zone, fading out
+  for (let i = 1; i <= 5; i++) {
+    const t   = i / 5;
+    const fy  = FL_HIT_Y + t * maxGrid;
+    const fw  = w * (1 + t * 1.4);
+    const fsx = vx - fw / 2;
+    ctx.strokeStyle = `rgba(55,80,220,${0.09 - t * 0.015})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(fsx, fy); ctx.lineTo(fsx + fw, fy); ctx.stroke();
+  }
+
+  // Converging side lines
+  for (let i = 0; i <= 6; i++) {
+    const frac  = i / 6;
+    const bx    = sx + frac * w;
+    const fendX = vx + (frac - 0.5) * w * 2.6;
+    const fendY = FL_HIT_Y + maxGrid;
+    ctx.strokeStyle = 'rgba(55,80,220,0.05)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(bx, FL_HIT_Y); ctx.lineTo(fendX, fendY); ctx.stroke();
+  }
+  ctx.restore();
+}
 
 // ─── Timing hitbox rectangles ───────────────────────────────
 
@@ -1416,9 +1825,120 @@ function drawHwyHitboxes() {
   ctx.restore();
 }
 
+// ─── Wordy Keys typing-trainer preview ──────────────────────
+
+function drawWordyPreview() {
+  const nowMs = audioEl.currentTime * 1000 + audioOffset;
+
+  // Current word: nearest active word note that has arrived or is very close
+  const active  = notes.filter(n => n.state === 'active' && n.word);
+  if (!active.length) return;
+
+  const behind  = active.filter(n => nowMs >= n.hitTime - hitWindows().ok * 2);
+  const current = behind.length
+    ? behind.reduce((a, b) => Math.abs(nowMs - a.hitTime) <= Math.abs(nowMs - b.hitTime) ? a : b)
+    : active[0];
+  const nextWord = active.find(n => n !== current);
+
+  const diffCol = '#44ddff';
+  const boxH    = 78;
+  const boxY    = FL_HIT_Y + 36;
+  const { sx: hwSx, w: hwW } = flatHBounds(FL_HIT_Y);
+  const BOX_MAX_W = hwW * 0.62;   // current word box: up to 62% of highway width
+
+  // ── Current word display ────────────────────────────────────
+  const word   = current.word;
+  const typed  = current.letterIdx;
+
+  // Measure per-character: fixed width per letter for clean layout
+  const CHAR_W = 28, PAD_X = 16, PAD_Y = 10;
+  const innerW = word.length * CHAR_W;
+  const boxW   = Math.min(BOX_MAX_W, innerW + PAD_X * 2);
+  const boxX   = CW / 2 - boxW / 2 - 20;   // nudge left to leave room for next-word
+  const r      = 12;
+
+  ctx.save();
+  ctx.shadowColor = diffCol; ctx.shadowBlur = 24;
+
+  // Box background
+  ctx.fillStyle = diffCol + '14';
+  rrect(ctx, boxX, boxY, boxW, boxH, r); ctx.fill();
+  ctx.strokeStyle = diffCol + 'aa';
+  ctx.lineWidth = 1.5;
+  rrect(ctx, boxX, boxY, boxW, boxH, r); ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Letters
+  const letterScale = Math.min(1, boxW / (innerW + PAD_X * 2));
+  const cw = CHAR_W * letterScale;
+  const startX = boxX + (boxW - word.length * cw) / 2;
+  const midY   = boxY + boxH / 2;
+
+  for (let i = 0; i < word.length; i++) {
+    const lx = startX + (i + 0.5) * cw;
+    if (i < typed) {
+      // Typed letter — dim, strikethrough
+      ctx.font = `600 22px 'Consolas',monospace`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = diffCol + '33';
+      ctx.fillText(word[i].toUpperCase(), lx, midY);
+      ctx.strokeStyle = diffCol + '44';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(lx - cw * 0.38, midY); ctx.lineTo(lx + cw * 0.38, midY); ctx.stroke();
+    } else if (i === typed) {
+      // Next letter — large, bright, glowing
+      ctx.shadowColor = '#ffffff'; ctx.shadowBlur = 14;
+      ctx.font = `bold 32px 'Consolas',monospace`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(word[i].toUpperCase(), lx, midY - 2);
+      ctx.shadowBlur = 0;
+      // Underline cursor
+      ctx.strokeStyle = diffCol;
+      ctx.lineWidth = 2.5;
+      ctx.shadowColor = diffCol; ctx.shadowBlur = 8;
+      ctx.beginPath(); ctx.moveTo(lx - cw * 0.38, midY + 16); ctx.lineTo(lx + cw * 0.38, midY + 16); ctx.stroke();
+      ctx.shadowBlur = 0;
+    } else {
+      // Upcoming letters — medium dim
+      ctx.font = `600 22px 'Consolas',monospace`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = diffCol + '88';
+      ctx.fillText(word[i].toUpperCase(), lx, midY);
+    }
+  }
+
+  // ── Next word — smaller, to the right ───────────────────────
+  if (nextWord) {
+    const NW_X   = boxX + boxW + 14;
+    const NW_W   = Math.min(CW - NW_X - 10, nextWord.word.length * 16 + 24);
+    if (NW_X + NW_W < CW - 6) {
+      const NW_H = 46;
+      const NW_Y = boxY + (boxH - NW_H) / 2;
+      ctx.globalAlpha = 0.52;
+      ctx.fillStyle = diffCol + '12';
+      rrect(ctx, NW_X, NW_Y, NW_W, NW_H, 8); ctx.fill();
+      ctx.strokeStyle = diffCol + '55';
+      ctx.lineWidth = 1;
+      rrect(ctx, NW_X, NW_Y, NW_W, NW_H, 8); ctx.stroke();
+
+      ctx.globalAlpha = 0.52;
+      ctx.font = `600 14px 'Consolas',monospace`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = diffCol + 'bb';
+      ctx.fillText(nextWord.word.toUpperCase(), NW_X + NW_W / 2, NW_Y + NW_H / 2);
+    }
+  }
+
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
 // ─── Next-note display ───────────────────────────────────────
 
 function drawNextNote() {
+  if (mode === 'wordy') { drawWordyPreview(); return; }
+
   const next = notes.find(n => n.state === 'active');
   if (!next) return;
 
@@ -1428,26 +1948,26 @@ function drawNextNote() {
   const modLabel = next.needsShift ? '⇧ SHIFT' : '';
 
   const cx = CW / 2;
-  const boxW = modLabel ? 120 : 82;
-  const boxH = modLabel ? 54 : 44;
+  const boxW = modLabel ? 134 : 96;
+  const boxH = modLabel ? 80 : 72;
   const boxX = cx - boxW / 2;
-  const boxY = FL_HIT_Y + 16;
-  const r = 10;
+  const boxY = FL_HIT_Y + 36;
+  const r = 12;
 
   ctx.save();
   ctx.shadowColor = color;
-  ctx.shadowBlur = 22;
+  ctx.shadowBlur = 28;
 
   // Background
-  ctx.fillStyle = color + '16';
+  ctx.fillStyle = color + '18';
   rrect(ctx, boxX, boxY, boxW, boxH, r); ctx.fill();
-  ctx.strokeStyle = color + '88';
+  ctx.strokeStyle = color + '99';
   ctx.lineWidth = 1.5;
   rrect(ctx, boxX, boxY, boxW, boxH, r); ctx.stroke();
 
   // Big character
-  ctx.shadowBlur = 10;
-  ctx.font = `bold 36px 'Consolas',monospace`;
+  ctx.shadowBlur = 12;
+  ctx.font = `bold 42px 'Consolas',monospace`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#ffffff';
@@ -1455,9 +1975,9 @@ function drawNextNote() {
 
   // Modifier label
   if (modLabel) {
-    ctx.font = `700 11px 'Segoe UI',sans-serif`;
+    ctx.font = `700 12px 'Segoe UI',sans-serif`;
     ctx.fillStyle = color;
-    ctx.fillText(modLabel, cx, boxY + boxH - 10);
+    ctx.fillText(modLabel, cx, boxY + boxH - 11);
   }
 
   ctx.restore();
@@ -1465,8 +1985,8 @@ function drawNextNote() {
   // Queue preview — next 4 upcoming notes to the right of the main box
   const queue = notes.filter(n => n.state === 'active').slice(1, 5);
   if (queue.length) {
-    const qSize = 30, qGap = 5;
-    const qX0 = boxX + boxW + 10;
+    const qSize = 38, qGap = 6;
+    const qX0 = boxX + boxW + 12;
     const qY  = boxY + (boxH - qSize) / 2;
 
     ctx.save();
@@ -1482,7 +2002,7 @@ function drawNextNote() {
       ctx.lineWidth = 1;
       rrect(ctx, qx, qY, qSize, qSize, 6); ctx.stroke();
 
-      ctx.font = `bold 15px 'Consolas',monospace`;
+      ctx.font = `bold 18px 'Consolas',monospace`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillStyle = '#ffffff';
       ctx.fillText(qn.char === ' ' ? '␣' : qn.char.toUpperCase(), qx + qSize / 2, qY + qSize / 2);
@@ -1498,16 +2018,17 @@ function drawMultBar() {
   const botY  = FL_HIT_Y;
   const rEdge = flatHBounds(botY).sx + flatHBounds(botY).w;
 
-  const barX = rEdge + 12;
-  const barW = 10;
+  const barX = rEdge + 14;
+  const barW = 14;
   const barH = botY - topY;
   const segH = barH / 4;
 
+  const isDoubled = activePowerup?.type === 'double';
   const TIERS = [
-    { min: 0,  span:  5, color: '#5599ff', label: '×1' },
-    { min: 5,  span:  8, color: '#55ff99', label: '×2' },
-    { min: 13, span: 12, color: '#ffaa44', label: '×3' },
-    { min: 25, span:  1, color: '#ff5599', label: '×4' },
+    { min: 0,  span:  5, color: '#5599ff', label: isDoubled ? '×2' : '×1' },
+    { min: 5,  span:  8, color: '#55ff99', label: isDoubled ? '×4' : '×2' },
+    { min: 13, span: 12, color: '#ffaa44', label: isDoubled ? '×6' : '×3' },
+    { min: 25, span:  1, color: '#ff5599', label: isDoubled ? '×8' : '×4' },
   ];
 
   ctx.save();
@@ -1560,9 +2081,17 @@ function drawMultBar() {
     const t       = TIERS[i];
     const midY    = botY - i * segH - segH / 2;
     const reached = combo >= t.min;
-    ctx.fillStyle = reached ? t.color : 'rgba(255,255,255,0.18)';
-    ctx.fillText(t.label, barX + barW + 4, midY);
+    if (isDoubled) {
+      ctx.fillStyle  = reached ? '#ffdd55' : 'rgba(255,221,85,0.28)';
+      ctx.shadowColor = '#ffdd55';
+      ctx.shadowBlur  = reached ? 8 : 0;
+    } else {
+      ctx.fillStyle  = reached ? t.color : 'rgba(255,255,255,0.18)';
+      ctx.shadowBlur = 0;
+    }
+    ctx.fillText(t.label, barX + barW + 5, midY);
   }
+  ctx.shadowBlur = 0;
 
   // Glow on active segment
   if (combo > 0) {
@@ -1580,7 +2109,7 @@ function drawMultBar() {
 
 function drawKeyboard(nowMs) {
   // Bottom of upper-left quadrant: anchor bottom edge ~62% down the highway height
-  const kbBottom = Math.round(HWY_TOP + (HIT_ZONE_Y - HWY_TOP) * 0.62);
+  const kbBottom = Math.round(FL_TOP + (FL_HIT_Y - FL_TOP) * 0.60);
   const kbTop    = kbBottom - 4 * KB_STEP_Y;
 
   // Build glow map: char → { glow: 0–1, color }
@@ -1712,39 +2241,147 @@ function drawKeyboard(nowMs) {
 //  RENDERING — shared HUD, particles, fx, countdown
 // ═══════════════════════════════════════════════════════════
 
-function drawBeatIndicator(nowMs) {
-  const stepMs  = getStreamStepMs();
-  // Phase: 0 = beat moment, increases toward stepMs
-  // streamAnchorMs is the hitTime of the first note — keeps indicator locked to notes
-  const phase   = ((nowMs - streamAnchorMs) % stepMs + stepMs) % stepMs;
-  const pulse   = clamp(1 - phase / (stepMs * 0.3), 0, 1);
+function ensureAnalyser() {
+  if (!audioEl || analyserSrcEl === audioEl) return;
+  try {
+    if (!gameAudioCtx) gameAudioCtx = new AudioContext();
+    const src = gameAudioCtx.createMediaElementSource(audioEl);
+    gameAnalyser = gameAudioCtx.createAnalyser();
+    gameAnalyser.fftSize = 512;            // ~11.6ms slices — WMP-style short window
+    gameAnalyser.smoothingTimeConstant = 0.75;
+    src.connect(gameAnalyser);
+    gameAnalyser.connect(gameAudioCtx.destination);
+    gameFreqData  = new Uint8Array(gameAnalyser.frequencyBinCount); // frequency buffer
+    wmpPeaks      = null; // reset peaks when analyser changes
+    analyserSrcEl = audioEl;
+  } catch(_) { gameAnalyser = null; }
+}
 
-  // Sit to the left of the flat highway; highway left edge ≈ (CW - FL_BOT_W)/2 = 260
+function drawWaveform() {
+  if (!gameAnalyser || !gameFreqData || gameState !== 'PLAYING') return;
+  gameAnalyser.getByteFrequencyData(gameFreqData);
+
+  const NUM_BARS = 26;
+  const BAR_W    = 4;
+  const BAR_GAP  = 2;
+  const CX       = 92;
+  const diffCol  = DIFFICULTY_DEFS[difficulty].color;
+  const bins     = gameAnalyser.frequencyBinCount; // 256
+
+  // Panel geometry — same footprint as before
+  const PANEL_W   = NUM_BARS * (BAR_W + BAR_GAP) - BAR_GAP; // 154px
+  const LEFT_X    = CX - PANEL_W / 2;
+  const PANEL_TOP = FL_HIT_Y - 95;
+  const PANEL_BOT = FL_HIT_Y - 9;
+  const PANEL_H   = PANEL_BOT - PANEL_TOP; // 86px
+
+  // Init peak tracker
+  if (!wmpPeaks || wmpPeaks.length !== NUM_BARS) wmpPeaks = new Float32Array(NUM_BARS);
+
+  ctx.save();
+
+  // Background panel
+  ctx.globalAlpha = 0.28;
+  ctx.fillStyle = '#06061a';
+  rrect(ctx, LEFT_X - 4, PANEL_TOP - 4, PANEL_W + 8, PANEL_H + 8, 5);
+  ctx.fill();
+
+  // Subtle horizontal scan-line grid
+  ctx.globalAlpha = 0.07;
+  ctx.strokeStyle = '#8899cc';
+  ctx.lineWidth = 1;
+  for (let g = 0; g <= 4; g++) {
+    const gy = PANEL_BOT - g * (PANEL_H / 4);
+    ctx.beginPath(); ctx.moveTo(LEFT_X, gy); ctx.lineTo(LEFT_X + PANEL_W, gy); ctx.stroke();
+  }
+
+  // Bars — logarithmic frequency mapping (bass on left, treble on right)
+  // Map 26 bars over roughly 0–8 kHz (bins 0–93 of 256 at 44100 Hz)
+  const BIN_MAX = Math.floor(bins * 0.36);
+  for (let b = 0; b < NUM_BARS; b++) {
+    const t0 = Math.pow(b / NUM_BARS, 1.7);
+    const t1 = Math.pow((b + 1) / NUM_BARS, 1.7);
+    const f0 = Math.floor(t0 * BIN_MAX);
+    const f1 = Math.max(f0 + 1, Math.floor(t1 * BIN_MAX));
+    let peak = 0;
+    for (let f = f0; f < f1 && f < bins; f++) peak = Math.max(peak, gameFreqData[f]);
+
+    const barH  = (peak / 255) * PANEL_H;
+    const x     = LEFT_X + b * (BAR_W + BAR_GAP);
+    const barY  = PANEL_BOT - barH;
+
+    // Gradient: base color dim at bottom → bright → near-white at top
+    const grad = ctx.createLinearGradient(x, PANEL_BOT, x, PANEL_TOP);
+    grad.addColorStop(0,    diffCol + '55');
+    grad.addColorStop(0.55, diffCol + 'cc');
+    grad.addColorStop(1,    '#ffffff99');
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = grad;
+    ctx.fillRect(x, barY, BAR_W, barH);
+
+    // Glow pass
+    ctx.globalAlpha = 0.25;
+    ctx.shadowColor = diffCol;
+    ctx.shadowBlur  = 8;
+    ctx.fillStyle   = diffCol;
+    ctx.fillRect(x, barY, BAR_W, barH);
+    ctx.shadowBlur  = 0;
+
+    // Peak dot — decays at ~1.2px/frame
+    wmpPeaks[b] = Math.max(wmpPeaks[b] - 1.2, barH);
+    const peakY = PANEL_BOT - wmpPeaks[b];
+    ctx.globalAlpha = 0.95;
+    ctx.fillStyle   = '#ffffff';
+    ctx.shadowColor = diffCol;
+    ctx.shadowBlur  = 6;
+    ctx.fillRect(x, peakY - 2, BAR_W, 2);
+    ctx.shadowBlur  = 0;
+  }
+
+  ctx.restore();
+}
+
+function drawBeatIndicator(nowMs) {
+  const stepMs = getStreamStepMs();
+  const phase  = ((nowMs - streamAnchorMs) % stepMs + stepMs) % stepMs;
+  const pulse  = clamp(1 - phase / (stepMs * 0.3), 0, 1);
+
   const cx = 210, cy = FL_HIT_Y;
-  const baseR = 14, r = baseR + pulse * 9;
+  const baseR = 14, r = baseR + pulse * 11;
   const col = DIFFICULTY_DEFS[difficulty].color;
 
   ctx.save();
 
-  // Outer glow
+  // Expanding ghost ring — travels outward as pulse decays
   if (pulse > 0.05) {
-    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 2.8);
-    g.addColorStop(0, col + 'aa');
-    g.addColorStop(1, col + '00');
-    ctx.globalAlpha = pulse * 0.45;
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(cx, cy, r * 2.8, 0, Math.PI * 2); ctx.fill();
+    const ringR = r * (1 + (1 - pulse) * 0.7);
+    ctx.globalAlpha = pulse * 0.28;
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(cx, cy, ringR, 0, Math.PI * 2); ctx.stroke();
   }
 
-  // Filled circle
-  ctx.globalAlpha = 0.06 + pulse * 0.30;
+  // Radial glow bloom
+  if (pulse > 0.05) {
+    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 3.4);
+    g.addColorStop(0, col + 'bb');
+    g.addColorStop(1, col + '00');
+    ctx.globalAlpha = pulse * 0.5;
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(cx, cy, r * 3.4, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // Filled disc
+  ctx.globalAlpha = 0.05 + pulse * 0.32;
   ctx.fillStyle = col;
   ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
 
-  // Ring
-  ctx.globalAlpha = 0.25 + pulse * 0.75;
+  // Main ring with shadow glow
+  ctx.globalAlpha = 0.28 + pulse * 0.72;
   ctx.strokeStyle = col;
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth   = 1.5;
+  ctx.shadowColor = col;
+  ctx.shadowBlur  = pulse * 18;
   ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
 
   ctx.restore();
@@ -1767,9 +2404,9 @@ function drawPowerupOverlay(nowMs) {
 
   // Position: right of the mult bar (barX = rEdge+12, barW=10, labels ~20px wide)
   const rEdge  = flatHBounds(FL_HIT_Y).sx + flatHBounds(FL_HIT_Y).w;
-  const slotCX = rEdge + 12 + 10 + 30; // center X of each icon circle
+  const slotCX = rEdge + 14 + 14 + 46; // center X — clear of mult bar labels
   const slotH  = (FL_HIT_Y - FL_TOP) / 4;
-  const R      = 11; // icon circle radius
+  const R      = 15; // icon circle radius
 
   const keys   = ['ArrowUp','ArrowRight','ArrowDown','ArrowLeft'];
   const ready  = powerupCharge > 0 && !pu;
@@ -1826,7 +2463,7 @@ function drawPowerupOverlay(nowMs) {
     // Label below circle
     ctx.globalAlpha = isActive ? 0.85 : ready ? 0.5 + pulse * 0.3 : 0.14;
     ctx.fillStyle   = isActive ? def.color : ready ? def.color : 'rgba(255,255,255,0.5)';
-    ctx.font = '6px "Segoe UI",sans-serif';
+    ctx.font = 'bold 7px "Segoe UI",sans-serif';
     ctx.textBaseline = 'top';
     ctx.fillText(def.label, slotCX, slotMidY + R + 3);
   });
@@ -1886,7 +2523,7 @@ function drawHUD(nowMs) {
   pg.addColorStop(0,'#5599ff'); pg.addColorStop(1,'#cc55ff');
   ctx.fillStyle=pg; ctx.fillRect(barX,barY,barW*pct,barH);
 
-  const modeName = mode==='straight'?'Straight Keys':mode==='shifty'?'Shifty Keys':'Spacey Keys';
+  const modeName = mode==='straight'?'Straight Keys':mode==='shifty'?'Shifty Keys':mode==='spacey'?'Spacey Keys':'Wordy Keys';
   ctx.font='10px "Segoe UI"'; ctx.fillStyle='rgba(255,255,255,0.22)';
   ctx.fillText(`${bpm} BPM  ·  ${modeName}  ·  ${DIFFICULTY_DEFS[difficulty].label}`, 20, 38);
 
@@ -1938,6 +2575,7 @@ async function beginGame() {
   hitFx=[]; particles=[]; laneFlash=[0,0,0,0];
   heldMods={shift:false,ctrl:false,alt:false};
   powerupCharge=0; activePowerup=null;
+  ensureAnalyser();
   notes = generateNotes();
   showScreen('game');
   gameState = 'COUNTDOWN';
@@ -1993,7 +2631,7 @@ function showResults() {
   const perfectPct=tot>0?(perfects/tot)*100:0;
   const grade=acc>=95?'S':acc>=85?'A':acc>=70?'B':acc>=60?'C':acc>=50?'D':'F';
   const gc={S:'#ffdd55',A:'#55ff99',B:'#5599ff',C:'#ffaa44',D:'#cc55ff',F:'#ff5577'};
-  const modeName=mode==='straight'?'Straight Keys':mode==='shifty'?'Shifty Keys':mode==='stream'?'Stream':'HotKeyS';
+  const modeName=mode==='straight'?'Straight Keys':mode==='shifty'?'Shifty Keys':mode==='spacey'?'Spacey Keys':mode==='wordy'?'Wordy Keys':'Tympo';
 
   // High score (keyed by songTitle + mode + difficulty)
   const hsKey=`hs:${songTitle||''}:${mode}:${difficulty}`;
@@ -2078,7 +2716,7 @@ function showScreen(name) {
 
 // ── Keyboard navigation helpers ──────────────────────────────
 
-const MENU_MODES = ['straight', 'shifty', 'spacey'];
+const MENU_MODES = ['straight', 'shifty', 'spacey', 'wordy'];
 
 function applyMenuMode(idx) {
   menuModeIdx = idx;
@@ -2315,9 +2953,9 @@ function calFinish() {
   const sorted = [...taps].sort((a, b) => a - b);
   const median = sorted[Math.floor(sorted.length / 2)];
 
-  // User tapped `median` ms AFTER the beat because they hear audio late.
-  // Compensate by shifting audioOffset negative by the same amount.
-  calSetOffset(-median);
+  // User tapped `median` ms after the beat — that's their natural timing offset.
+  // Apply the same positive shift so their timing is centred in the hit window.
+  calSetOffset(median);
 
   const sign = audioOffset >= 0 ? '+' : '';
   document.getElementById('calProgress').textContent = `Done — ${taps.length} taps recorded`;
