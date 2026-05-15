@@ -144,12 +144,12 @@
     /* Mode cards */
     .mode-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 10px;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
     }
 
     .mode-card {
-      padding: 14px 10px 12px;
+      padding: 12px 6px 10px;
       background: rgba(255,255,255,0.03);
       border: 1px solid rgba(255,255,255,0.09);
       border-radius: 12px;
@@ -159,9 +159,9 @@
       transition: all 0.15s;
     }
     .mode-card:hover { background: rgba(255,255,255,0.07); }
-    .mode-card .mc-icon { font-size: 1.4rem; margin-bottom: 6px; }
-    .mode-card .mc-name { font-size: 0.88rem; font-weight: 800; letter-spacing: 0.04em; margin-bottom: 3px; }
-    .mode-card .mc-desc { font-size: 0.68rem; color: rgba(255,255,255,0.38); line-height: 1.4; }
+    .mode-card .mc-icon { font-size: 1.25rem; margin-bottom: 5px; }
+    .mode-card .mc-name { font-size: 0.78rem; font-weight: 800; letter-spacing: 0.03em; margin-bottom: 3px; }
+    .mode-card .mc-desc { font-size: 0.6rem; color: rgba(255,255,255,0.38); line-height: 1.35; }
 
     .mode-card[data-mode="straight"].active { border-color: #55ff99; background: rgba(85,255,153,0.08); }
     .mode-card[data-mode="straight"].active .mc-name { color: #55ff99; }
@@ -173,10 +173,14 @@
     .mode-card[data-mode="wordy"].active  { border-color: #44ddff; background: rgba(68,221,255,0.08); }
     .mode-card[data-mode="wordy"].active  .mc-name { color: #44ddff; }
 
+    .mode-card[data-mode="double"].active { border-color: #ff66cc; background: rgba(255,102,204,0.08); }
+    .mode-card[data-mode="double"].active .mc-name { color: #ff66cc; }
+
     /* Ambient glow on unselected mode cards */
     .mode-card[data-mode="shifty"]:not(.active) { border-color: rgba(255,221,85,0.18); box-shadow: 0 0 14px 3px rgba(255,221,85,0.09); }
     .mode-card[data-mode="spacey"]:not(.active) { border-color: rgba(204,136,255,0.18); box-shadow: 0 0 14px 3px rgba(204,136,255,0.09); }
     .mode-card[data-mode="wordy"]:not(.active)  { border-color: rgba(68,221,255,0.18);  box-shadow: 0 0 14px 3px rgba(68,221,255,0.09);  }
+    .mode-card[data-mode="double"]:not(.active) { border-color: rgba(255,102,204,0.18); box-shadow: 0 0 14px 3px rgba(255,102,204,0.09); }
 
     /* Ambient glow on unselected difficulty buttons */
     .diff-btn[data-diff="easy"]:not(.active)   { border-color: rgba(85,255,153,0.2);  box-shadow: 0 0 10px 2px rgba(85,255,153,0.1);  }
@@ -500,6 +504,11 @@
         <div class="mc-name">Wordy Keys</div>
         <div class="mc-desc">Type whole words — letter by letter on the beat</div>
       </div>
+      <div class="mode-card" data-mode="double">
+        <div class="mc-icon">⧉</div>
+        <div class="mc-name">Double Keys</div>
+        <div class="mc-desc">Two keys at once — half as often, both required</div>
+      </div>
     </div>
   </div>
 
@@ -623,12 +632,12 @@ const KB_ROWS = [
   { chars: ['a','s','d','f','g','h','j','k','l'],     stagger: 0.75 },
   { chars: ['z','x','c','v','b','n','m'],              stagger: 1.25 },
 ];
-const KB_KEY_W  = 26;
-const KB_KEY_H  = 18;
+const KB_KEY_W  = 21;
+const KB_KEY_H  = 15;
 const KB_GAP_X  = 3;
 const KB_GAP_Y  = 3;
-const KB_STEP_X = KB_KEY_W + KB_GAP_X;   // 29
-const KB_STEP_Y = KB_KEY_H + KB_GAP_Y;   // 21
+const KB_STEP_X = KB_KEY_W + KB_GAP_X;   // 24
+const KB_STEP_Y = KB_KEY_H + KB_GAP_Y;   // 18
 // Left-pinned: sits in the left margin beside the highway
 const KB_LEFT   = 12;
 
@@ -934,6 +943,24 @@ function generateNotes() {
       });
       t += wordStepMs;
     }
+  } else if (mode === 'double') {
+    // Two distinct keys per note, presented half as often
+    function pickDoubleChar() {
+      const r = Math.random() * 100;
+      if (r < numericPct) return '0123456789'[Math.floor(Math.random() * 10)];
+      return 'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random() * 26)];
+    }
+    const doubleStepMs = stepMs * 2;
+    while (t < songEnd) {
+      const c1 = pickDoubleChar();
+      let c2 = pickDoubleChar(), guard = 0;
+      while (c2 === c1 && guard++ < 16) c2 = pickDoubleChar();
+      result.push({
+        id: id++, char: c1, char2: c2, lane: 0, hitTime: t,
+        state: 'active', needsShift: false, isDouble: true, got1: false, got2: false,
+      });
+      t += doubleStepMs;
+    }
   } else {
     while (t < songEnd) {
       const char       = pickChar();
@@ -1091,6 +1118,12 @@ document.addEventListener('keydown', e => {
     return;
   }
 
+  if (mode === 'double') {
+    if (e.shiftKey || e.ctrlKey || e.altKey) return;
+    processHitDouble(key);
+    return;
+  }
+
   if (mode === 'shifty') {
     if (e.ctrlKey || e.altKey) return;
     processHitFlat(key, e.shiftKey);
@@ -1223,6 +1256,40 @@ function processHitWordy(char) {
     current.hitGrade = grade;
     score += 50 * multiplier(); // word-completion bonus
     spawnFx(CW / 2, FL_HIT_Y - 50, current.word.toUpperCase() + '!', '#44ddff');
+  }
+}
+
+// Double Keys hit processing — both keys of a duo must be pressed within the window
+function processHitDouble(char) {
+  const nowMs = audioEl.currentTime * 1000 + audioOffset;
+  const { perfect:pw, good:gw, ok:ow } = hitWindows();
+
+  // Candidate double notes in the window that still need THIS key
+  const cands = notes.filter(n =>
+    n.state === 'active' && n.isDouble &&
+    Math.abs(nowMs - n.hitTime) <= ow &&
+    ((char === n.char && !n.got1) || (char === n.char2 && !n.got2))
+  );
+  if (!cands.length) return; // stray key — no penalty (matches other modes)
+
+  cands.sort((a, b) => Math.abs(nowMs - a.hitTime) - Math.abs(nowMs - b.hitTime));
+  const n = cands[0];
+
+  if (char === n.char && !n.got1)       n.got1 = true;
+  else if (char === n.char2 && !n.got2) n.got2 = true;
+
+  const DCOL = '#ff66cc';
+
+  if (n.got1 && n.got2) {
+    // Both keys down — finalize and grade on this completing press
+    scoreNote(n, nowMs, pw, gw);
+    spawnFx(CW / 2, FL_HIT_Y - 22, n.hitGrade, DCOL);
+    spawnParticles(CW / 2, FL_HIT_Y, DCOL, n.hitGrade === 'Perfect' ? 18 : 11);
+    laneFlash[0] = 1.0;
+  } else {
+    // First of the pair — light partial feedback, no score yet
+    spawnParticles(flatNoteX(char, FL_HIT_Y), FL_HIT_Y, DCOL, 5);
+    laneFlash[0] = 0.4;
   }
 }
 
@@ -1415,6 +1482,7 @@ function _modeColor() {
   if (mode === 'shifty') return '#ffdd55';
   if (mode === 'spacey') return '#cc88ff';
   if (mode === 'wordy')  return '#44ddff';
+  if (mode === 'double') return '#ff66cc';
   return '#55ff99';
 }
 
@@ -1698,6 +1766,96 @@ function drawFlatNote(note, sy) {
       }
       ctx.restore();
     }
+    return;
+  }
+
+  // Double note: two keys at their own x, a connector, and a centered combo plate
+  if (note.isDouble) {
+    const depth = clamp((sy - FL_TOP) / FL_H, 0, 1);
+    const DCOL  = '#ff66cc';
+    let   x1 = flatNoteX(note.char,  sy);
+    let   x2 = flatNoteX(note.char2, sy);
+    const w  = 16 + 24 * depth;
+    const h  = 12 + 28 * depth;
+    const r  = 2 + 7 * depth;
+    const midX = (x1 + x2) / 2;
+
+    // Keep both bubbles fully visible: if they'd overlap, spread them
+    // symmetrically around their midpoint so a clear gap remains.
+    const minSep = w + 6 + 4 * depth;
+    if (Math.abs(x2 - x1) < minSep) {
+      const dir = (x2 >= x1) ? 1 : -1;
+      x1 = midX - dir * minSep / 2;
+      x2 = midX + dir * minSep / 2;
+    }
+
+    ctx.save();
+
+    // Connector between the two keys
+    ctx.strokeStyle = _hexToRgba(DCOL, 0.35 + 0.35 * depth);
+    ctx.lineWidth = 2 + 3 * depth;
+    ctx.shadowColor = DCOL;
+    ctx.shadowBlur = 4 + 8 * depth;
+    ctx.beginPath();
+    ctx.moveTo(x1, sy);
+    ctx.lineTo(x2, sy);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // Centered, larger, semi-transparent combo plate "K1+K2"
+    if (depth > 0.12) {
+      const label = note.char.toUpperCase() + '+' + note.char2.toUpperCase();
+      const cfs   = 8 + 18 * depth;
+      ctx.font = `bold ${cfs}px monospace`;
+      const pad   = 6 + 6 * depth;
+      const cw    = ctx.measureText(label).width + pad * 2;
+      const ch    = h * 1.5;
+      ctx.globalAlpha = 0.42;
+      const cgrad = ctx.createLinearGradient(0, sy - ch/2, 0, sy + ch/2);
+      cgrad.addColorStop(0, lighten(DCOL, 0.45));
+      cgrad.addColorStop(1, darken(DCOL, 0.45));
+      ctx.fillStyle = cgrad;
+      ctx.shadowColor = DCOL;
+      ctx.shadowBlur = 10 + 10 * depth;
+      rrect(ctx, midX - cw/2, sy - ch/2, cw, ch, r + 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = 0.85;
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, midX, sy);
+      ctx.globalAlpha = 1;
+    }
+
+    // The two required key bubbles (drawn on top)
+    function drawDuoKey(kx, kch, pressed) {
+      const base = pressed ? '#55ff99' : DCOL;
+      ctx.globalAlpha = pressed ? 0.55 : 1;
+      const g = ctx.createLinearGradient(0, sy - h/2, 0, sy + h/2);
+      g.addColorStop(0, lighten(base, 0.45));
+      g.addColorStop(1, darken(base, 0.45));
+      ctx.fillStyle = g;
+      ctx.shadowColor = base;
+      ctx.shadowBlur = 6 + 10 * depth;
+      rrect(ctx, kx - w/2, sy - h/2, w, h, r);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      rrect(ctx, kx - w/2 + 2, sy - h/2 + 2, w - 4, 1.5 + 1.5 * depth, 1);
+      ctx.fill();
+      const fs = 7 + 16 * depth;
+      ctx.font = `bold ${fs}px monospace`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#0a0a18';
+      ctx.fillText(kch.toUpperCase(), kx, sy);
+      ctx.globalAlpha = 1;
+    }
+    drawDuoKey(x1, note.char,  note.got1);
+    drawDuoKey(x2, note.char2, note.got2);
+
+    ctx.restore();
     return;
   }
 
@@ -2009,11 +2167,16 @@ function drawNextNote() {
 
   const first = upcoming[0];
   const isSpace = first.char === ' ';
-  const noteColor = (n) => n.char === ' ' ? '#cc88ff' : (n.needsShift ? '#ffaa44' : '#55ff99');
+  const noteColor = (n) => n.isDouble ? '#ff66cc'
+    : n.char === ' ' ? '#cc88ff'
+    : (n.needsShift ? '#ffaa44' : '#55ff99');
+  const noteLabel = (n) => n.isDouble ? (n.char.toUpperCase() + '+' + n.char2.toUpperCase())
+    : n.char === ' ' ? '␣'
+    : n.char.toUpperCase();
   const color = noteColor(first);
 
-  const wideBox = !!first.needsShift;
-  const boxW = wideBox ? 130 : 90;
+  const wideBox = !!first.needsShift || !!first.isDouble;
+  const boxW = wideBox ? 150 : 90;
   const boxH = 90;
   const queueW = 4 * 46 - 6;
   const totalW = boxW + 14 + queueW;
@@ -2032,12 +2195,11 @@ function drawNextNote() {
   ctx.stroke();
   ctx.shadowBlur = 0;
 
-  ctx.font = 'bold 54px monospace';
+  ctx.font = `bold ${first.isDouble ? 40 : 54}px monospace`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = color;
-  const txt = isSpace ? '␣' : first.char.toUpperCase();
-  ctx.fillText(txt, cx, cy - (first.needsShift ? 10 : 0));
+  ctx.fillText(noteLabel(first), cx, cy - (first.needsShift ? 10 : 0));
   if (first.needsShift) {
     ctx.font = 'bold 11px monospace';
     ctx.fillStyle = '#ffaa44';
@@ -2055,9 +2217,9 @@ function drawNextNote() {
     rrect(ctx, qx, cy - h/2, w, h, 5);
     ctx.fill();
     ctx.stroke();
-    ctx.font = 'bold 22px monospace';
+    ctx.font = `bold ${n.isDouble ? 13 : 22}px monospace`;
     ctx.fillStyle = c;
-    ctx.fillText(n.char === ' ' ? '␣' : n.char.toUpperCase(), qx + w/2, cy);
+    ctx.fillText(noteLabel(n), qx + w/2, cy);
     qx += w + 6;
   }
   ctx.restore();
@@ -2120,7 +2282,9 @@ function drawKeyboard(nowMs) {
     let best = null;
     for (const n of notes) {
       if (n.state !== 'active') continue;
-      if ((n.char || '').toLowerCase() !== ch) continue;
+      const matches = (n.char || '').toLowerCase() === ch ||
+                      (n.isDouble && (n.char2 || '').toLowerCase() === ch);
+      if (!matches) continue;
       if (n.hitTime < nowMs - 50) continue;
       if (n.hitTime > nowMs + TRAVEL_MS * 1.5) break;
       if (!best || n.hitTime < best.hitTime) best = n;
@@ -2154,7 +2318,8 @@ function drawKeyboard(nowMs) {
       if (kf != null && performance.now() - kf < 180) {
         flash = 1 - (performance.now() - kf) / 180;
       }
-      const baseColor = upcoming && upcoming.needsShift ? '#ffaa44' : '#5599ff';
+      const baseColor = upcoming && upcoming.isDouble ? '#ff66cc'
+        : upcoming && upcoming.needsShift ? '#ffaa44' : '#5599ff';
       const fillColor = flash > 0
         ? '#55ff99'
         : (glow > 0.05 ? lighten('#1c1c30', glow * 0.4) : '#1c1c30');
@@ -2172,7 +2337,7 @@ function drawKeyboard(nowMs) {
       ctx.stroke();
 
       ctx.fillStyle = (glow > 0.3 || flash > 0) ? '#fff' : '#8898aa';
-      ctx.font = 'bold 11px monospace';
+      ctx.font = 'bold 10px monospace';
       ctx.fillText(ch.toUpperCase(), kx + KB_KEY_W/2, ky + KB_KEY_H/2);
     });
   });
@@ -2211,7 +2376,7 @@ function drawKeyboard(nowMs) {
     ctx.stroke();
 
     ctx.fillStyle = (glow > 0.3 || flash > 0) ? '#fff' : '#8898aa';
-    ctx.font = 'bold 10px monospace';
+    ctx.font = 'bold 9px monospace';
     ctx.fillText('SPACE', spaceX + spaceW/2, spaceY + KB_KEY_H/2);
   }
 
@@ -2415,7 +2580,9 @@ function drawHUD(nowMs) {
   ctx.fillStyle = DIFFICULTY_DEFS[difficulty].color;
   ctx.fillText(DIFFICULTY_DEFS[difficulty].label.toUpperCase(), CW - 20, 18);
   ctx.fillStyle = _modeColor();
-  const modeLabel = (mode === 'wordy') ? 'WORDY KEYS' : (mode.toUpperCase() + ' KEYS');
+  const modeLabel = (mode === 'wordy') ? 'WORDY KEYS'
+    : (mode === 'double') ? 'DOUBLE KEYS'
+    : (mode.toUpperCase() + ' KEYS');
   ctx.fillText(modeLabel, CW - 20, 36);
 
   if (bpm > 0 && Math.abs((targetBpm / bpm) - 1) > 0.005) {
@@ -2542,7 +2709,7 @@ function showResults() {
   const perfectPct=tot>0?(perfects/tot)*100:0;
   const grade=acc>=95?'S':acc>=85?'A':acc>=70?'B':acc>=60?'C':acc>=50?'D':'F';
   const gc={S:'#ffdd55',A:'#55ff99',B:'#5599ff',C:'#ffaa44',D:'#cc55ff',F:'#ff5577'};
-  const modeName=mode==='straight'?'Straight Keys':mode==='shifty'?'Shifty Keys':mode==='spacey'?'Spacey Keys':mode==='wordy'?'Wordy Keys':'Tympo';
+  const modeName=mode==='straight'?'Straight Keys':mode==='shifty'?'Shifty Keys':mode==='spacey'?'Spacey Keys':mode==='wordy'?'Wordy Keys':mode==='double'?'Double Keys':'Tympo';
 
   // High score (keyed by songTitle + mode + difficulty)
   const hsKey=`hs:${songTitle||''}:${mode}:${difficulty}`;
@@ -2627,7 +2794,7 @@ function showScreen(name) {
 
 // ── Keyboard navigation helpers ──────────────────────────────
 
-const MENU_MODES = ['straight', 'shifty', 'spacey', 'wordy'];
+const MENU_MODES = ['straight', 'shifty', 'spacey', 'wordy', 'double'];
 
 function applyMenuMode(idx) {
   menuModeIdx = idx;

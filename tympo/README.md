@@ -12,6 +12,7 @@ A Guitar Hero-style rhythm game played entirely with a standard keyboard. Alphan
 | **Shifty Keys** | Same as Straight (including Space bar notes), but a fraction of notes require Shift simultaneously. Space notes are never Shift-modified. Shift notes glow orange; plain/space notes glow green. |
 | **Spacey Keys** | Same as Straight, but the Space bar must be pressed on the offbeat between every letter note. Space notes appear as a wide purple bar spanning the full highway width. |
 | **Wordy Keys** | Full words fall as wide cyan banners. The player types the word letter-by-letter; each letter is scored individually. The preview area becomes a typing-trainer display showing the current word (with typed letters struck-through, next letter highlighted in white, remaining letters dim) and the next word in a smaller box to the right. |
+| **Double Keys** | Notes arrive **half as often** as the difficulty's normal interval, but each note is a **duo of two distinct keys** that must both be pressed within the hit window (order doesn't matter). The two keys fall side-by-side at their own QWERTY positions, joined by a glowing connector, with a larger semi-transparent `K1+K2` combo plate centred between them. Notes glow pink (`#ff66cc`). |
 
 ---
 
@@ -85,6 +86,8 @@ function generateNotes() {
 ```
 
 `streamAnchorMs` is stored globally and used by the beat indicator to stay phase-locked to the notes.
+
+**Wordy** and **Double** modes use their own branches: words advance by `stepMs * 2`; double notes advance by `stepMs * 2` and carry two distinct keys (`char` + `char2`, regenerated until they differ) plus `isDouble`, `got1`, `got2` flags.
 
 ---
 
@@ -212,6 +215,16 @@ Words are shuffled each game; the queue reshuffles when exhausted. The active wo
 
 ---
 
+## Double Keys Mode
+
+Double notes spawn at **`stepMs * 2`** (half as often as the difficulty's normal cadence). Each note carries two distinct keys — `char` and `char2` — both letters/digits (no space, no Shift). The pair is regenerated until the two keys differ.
+
+**Hit logic** (`processHitDouble`): Each keypress looks for the nearest active double note (within the OK window) that still needs that specific key, and sets its `got1`/`got2` flag. The note is **not scored until both keys are down**; the completing press is graded via the normal `scoreNote` timing windows (one combo unit per duo). The first key of a pair gives light particle feedback only. Stray keys cause no penalty (consistent with the other flat modes). A duo that expires with only one key pressed is a single miss and resets the combo. Autopilot/Hacker powerups score the whole duo at once.
+
+**Highway display:** Both keys are drawn at their own QWERTY x-positions on the same scroll line, joined by a glowing pink connector. A larger (1.5× note height), semi-transparent (~0.42 alpha) combo plate showing `K1+K2` is centred between them, with the two solid key bubbles on top. A key bubble already pressed for that duo turns green and dims to 55% alpha. Mode/note color is pink `#ff66cc`. The keyboard visualization glows for **both** keys of an upcoming duo, and the next-note box widens to fit the `K1+K2` label.
+
+---
+
 ## Frequency Visualizer (WMP-style)
 
 A Windows Media Player "Bars and Waves"-style frequency visualizer sits to the left of the highway, centered around `x ≈ 92`. 26 vertical bars span roughly 0–8 kHz using logarithmic frequency mapping (bass left, treble right), rising from a dark panel floor. Each bar's height is proportional to the peak amplitude in its frequency bucket. A white peak-dot sits above each bar and falls at ~1.2 px/frame.
@@ -234,7 +247,7 @@ The analyser is created via `ensureAnalyser()` on game start, which calls `creat
 
 ## Keyboard Visualization
 
-A miniature QWERTY keyboard (`rows: 1234567890 / qwertyuiop / asdfghjkl / zxcvm`) is rendered in the upper-left quadrant of the screen, left of the highway. Key size: 26×18 px with 3 px gaps. Left-pinned at x=12, bottom anchored at 62% down the highway height.
+A miniature QWERTY keyboard (`rows: 1234567890 / qwertyuiop / asdfghjkl / zxcvbnm`) is rendered in the upper-left quadrant of the screen, left of the highway. Key size: **21×15 px** with 3 px gaps (deliberately compact so the keyboard never clips into the perspective highway). Left-pinned at x=12, bottom anchored at 62% down the highway height. Key labels are 10px bold monospace; the Spacey space bar label is 9px.
 
 Keys glow as their corresponding note approaches the hit zone:
 
