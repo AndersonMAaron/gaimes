@@ -8,8 +8,8 @@ A Guitar Hero-style rhythm game played entirely with a standard keyboard. Alphan
 
 | Mode | Description |
 |------|-------------|
-| **Straight Keys** | Random alphanumeric keys, no modifiers. Notes fall at their physical QWERTY position on the highway. |
-| **Shifty Keys** | Same as Straight, but a fraction of notes (per difficulty) require Shift held simultaneously. Shift notes glow orange; plain notes glow green. |
+| **Straight Keys** | Random alphanumeric keys plus occasional Space bar (~8%), no modifiers. Notes fall at their physical QWERTY position on the highway. |
+| **Shifty Keys** | Same as Straight (including Space bar notes), but a fraction of notes require Shift simultaneously. Space notes are never Shift-modified. Shift notes glow orange; plain/space notes glow green. |
 | **Spacey Keys** | Same as Straight, but the Space bar must be pressed on the offbeat between every letter note. Space notes appear as a wide purple bar spanning the full highway width. |
 | **Wordy Keys** | Full words fall as wide cyan banners. The player types the word letter-by-letter; each letter is scored individually. The preview area becomes a typing-trainer display showing the current word (with typed letters struck-through, next letter highlighted in white, remaining letters dim) and the next word in a smaller box to the right. |
 
@@ -164,7 +164,9 @@ const nH = 12 + depth * 28;  // 12px at top → 40px at bottom
 
 Color: Shifty notes that require Shift are `#ffaa44` (orange); all others are `#55ff99` (green). Space notes are `#cc88ff` (purple) and are always drawn as a full-width bar.
 
-Each note has a rounded-rect body with a vertical gradient (lighter top, darker bottom) and a highlight stripe near the top. The key letter is rendered centered in the note in a bold monospace font, scaling with `depth`.
+Each note is a rounded rect drawn **centered** on `sy` (so the note straddles the hit line at the perfect-hit moment), with a vertical gradient (lighter top, darker bottom) and a thin white highlight stripe near the top. The key letter is rendered centered on the note in dark `#0a0a18` bold monospace, scaling with `depth`.
+
+The hit zone line is a single 3px stroke in the active **mode color** (`#55ff99` Straight, `#ffdd55` Shifty, `#cc88ff` Spacey, `#44ddff` Wordy) with a 30px shadow blur. Successful hits trigger a brief mode-color flash band along the hit line.
 
 ---
 
@@ -178,7 +180,7 @@ const pulse = clamp(1 - phase / (stepMs * 0.3), 0, 1);
 // pulse = 1 at the beat moment, decays to 0 over 30% of the interval
 ```
 
-The circle expands (base radius 14px → +11px at peak) and brightens with an outer radial glow. An additional ghost ring expands outward from the peak radius as the pulse decays, creating a ripple effect. Color matches the active difficulty color. Useful for BPM calibration: if notes drift from the song, the BPM is wrong.
+The filled disc expands (radius `12 + 13 * pulse` → 12px idle, 25px at peak) and brightens with a difficulty-color shadow blur (`10 + 30 * pulse`). A ghost ring (`25 + (1 - pulse) * 40` radius) expands outward as the pulse decays, creating a ripple effect. Color matches the active difficulty color. Useful for BPM calibration: if notes drift from the song, the BPM is wrong.
 
 **BPM calibration tip:** If notes arrive ahead of the song, BPM is set too high; if they fall behind, too low. Adjust until the stream tracks the song consistently from start to finish.
 
@@ -196,16 +198,17 @@ Words are generated from a per-difficulty dictionary and fall as wide cyan banne
 
 Words are shuffled each game; the queue reshuffles when exhausted. The active word is `wordyNextWord()` drawing from `wordyQueue`.
 
-**Scoring:** Each correctly-typed letter is scored individually:
-- Grade based on `|elapsed − (letterIdx × perLetterMs)| vs. perfect/good windows`
-- A word-completion bonus (+50 × multiplier) fires when the last letter is typed
-- Wrong letter: error flash, no miss — the player can keep trying until the deadline
+**Frequency:** Words spawn at **2× the normal step interval** (`stepMs * 2`) — half as often as other modes — giving the player time to type each word fully before the next arrives.
 
-**Miss deadline:** `hitTime + (remaining_letters × 180ms) + ok_window`. Each untyped letter at expiry = one miss, combo reset.
+**Typing gate:** The player **cannot type a word until it crosses the hit line**. `processHitWordy` filters to `arrived = active.filter(n => nowMs >= n.hitTime - ok_window)` and silently ignores keypresses when nothing has arrived yet.
 
-**Highway display:** Words render as a full-width perspective banner (same trapezoidal scaling). Letter-level progress is overlaid: typed letters dark/dim, next letter white/full-brightness, remaining letters in dim cyan.
+**Scoring:** The grade (Perfect / Good / OK) is determined **once, on the first letter**, based on how closely the player hits the word's `hitTime`. Every subsequent letter in the same word earns the identical grade and point value. A word-completion bonus (+50 × multiplier) fires on the last letter. Wrong letter: error flash (`✕`), no miss penalty — keep trying until the deadline.
 
-**Typing-trainer preview** (`drawWordyPreview`): Replaces the single-char box below the hit zone with a wide panel showing each character of the current word individually — typed letters dim with strikethrough, the next letter in bright white with a glowing underline cursor, remaining letters in half-opacity cyan. If space allows, the next word appears in a smaller box to the right.
+**Miss deadline:** `hitTime + (remaining_letters × 350ms) + ok_window`. Each untyped letter at expiry = one miss, combo reset.
+
+**Highway display:** Words render as a full-width perspective banner (same trapezoidal scaling). Once a word crosses the hit line it **freezes at `FL_HIT_Y`** (`drawY = Math.min(sy, FL_HIT_Y)`) and stays visible there until typed or expired — filling the empty space between words. Letter-level progress is overlaid: typed letters dark/dim, next letter white/full-brightness, remaining letters in dim cyan.
+
+**Typing-trainer preview** (`drawWordyPreview`): Only appears once the word has crossed the hit line (same gate as input). Replaces the single-char box below the hit zone with a wide panel showing each character of the current word individually — typed letters dim with strikethrough, the next letter in bright white with a glowing underline cursor, remaining letters in half-opacity cyan. If space allows, the next word (still approaching) appears in a smaller box to the right.
 
 ---
 
@@ -221,7 +224,7 @@ gameAnalyser.getByteFrequencyData(freqData); // 256 frequency bins, 0–255
 
 **Frequency mapping:** 26 bars are logarithmically spaced over bins 0–93 (≈ 0–8 kHz at 44100 Hz) using `t = (b / NUM_BARS) ^ 1.7` to weight bass bars wider. Each bar takes the max value across its bin range.
 
-**Bar rendering:** Each bar is filled with a vertical gradient — dim difficulty color at the base fading to near-white at the tip — plus a second glow pass (`shadowBlur=8`). The peak dot is white with a colored glow.
+**Bar rendering:** Each bar is filled with a fixed blue gradient — `#1a3370` (dim base) → `#55aaff` (mid) → `#ddeeff` (bright tip) — with a `#55aaff` shadow blur. A small `FREQ` label sits above the panel; the panel itself is a 130×86 rounded rect with a translucent dark fill and a soft blue border. The peak dot is a 2px white bar.
 
 **Peak decay:** Stored in `wmpPeaks` (`Float32Array`, module-level), reset when the analyser reconnects. Each frame: `peak = max(peak - 1.2, currentBarHeight)`.
 
@@ -267,6 +270,10 @@ Combo multiplier:
 
 High scores are persisted in `localStorage` keyed by `hs:{songTitle}:{mode}:{difficulty}`.
 
+A vertical multiplier bar (28×full-highway-height at `x=750`) shows the four tiers as stacked rounded slots. Each tier slot lights up with its own color (`×1` blue, `×2` green, `×3` orange, `×4` pink) once its threshold is reached, with the label rendered in white in the centre of the slot. When the **×2** powerup is active, all reached tiers turn gold (`#ffdd55`) and the labels switch to the doubled values (×2/×4/×6/×8).
+
+The in-game HUD is intentionally minimal: a `SCORE` label and the live score (`#88ccff`, 32px monospace) at top-left, the current combo (`{n}× COMBO`, gold) just below; the active difficulty (in its color) and mode (in mode color) right-aligned at top-right; and the playback rate (`× 1.25`) below them when Target BPM ≠ Song BPM.
+
 ---
 
 ## Powerups
@@ -282,11 +289,11 @@ Every 12th consecutive hit while at the ×4 multiplier (with no powerup already 
 
 Only one powerup can be active at a time. The charge is consumed on activation; a new charge can be earned after the active powerup expires.
 
-Four powerup slot icons are displayed **vertically to the right of the multiplier bar**, one per arrow direction. Each slot shows:
-- A dim circle when uncharged
-- A bright glow ring when charged/active
-- A depleting arc that tracks remaining duration while active
-- The arrow direction icon and a short label
+Four powerup slot icons are stacked **vertically at `x=815`, to the right of the multiplier bar**, in the order ↑ ↓ → ←. Each slot is a 40×40 circle showing:
+- A translucent dark fill with a faint gray border when uncharged
+- A bright color glow ring (the powerup's color) when charged or active
+- A depleting clockwise arc inside the circle that tracks remaining duration while active
+- The arrow icon (22px) centered, with a short label (`×2` / `PPPP` / `HACK` / `AUTO`) below
 
 ---
 
@@ -306,11 +313,30 @@ A positive `audioOffset` shifts the effective "now" forward — if the user natu
 
 | Setting | Effect |
 |---------|--------|
-| **BPM** | Sets the beat grid. All note timing and hit windows scale with it. |
+| **BPM** | The song's actual tempo. Sets the beat grid for note generation and hit windows. |
+| **Target BPM** | The tempo the song is played at. `audioEl.playbackRate = targetBpm / bpm`, pitch-preserving. Equal to BPM = no speed change. Auto-tracks BPM until manually edited. |
 | **Difficulty** | Easy / Medium / Hard / Expert — controls note interval and Shifty shift probability. |
 | **Number Keys %** | Fraction of notes drawn from `0–9` vs `a–z`. Default 5%. |
 | **Offbeat** | Shifts the note grid by half a beat (notes land on eighth-note offbeats). Beat indicator phase shifts to match. |
 | **Audio Offset** | Manual timing trim for when calibration isn't needed. |
+
+### Tempo Shift (Target BPM)
+
+The setup screen has two BPM inputs:
+
+- **BPM** — the song's intrinsic tempo, used by the note generator.
+- **Target BPM** — the desired playback tempo.
+
+On game start:
+
+```javascript
+audioEl.preservesPitch = true;
+audioEl.playbackRate   = targetBpm / bpm;
+```
+
+`audioEl.currentTime` is the song's intrinsic-time position; with `playbackRate = r` it advances `r` seconds per wall-clock second. Note generation, hit windows, and the beat indicator all operate on intrinsic time (`nowMs = audioEl.currentTime * 1000 + audioOffset`), so they automatically render as Target BPM in wall-clock — the highway visibly speeds up or slows down to match.
+
+Target BPM defaults to 120 and auto-tracks the BPM input (including the TAP detector) until the user manually edits it, at which point the two become independent.
 
 ---
 
@@ -485,7 +511,8 @@ Below the hit zone, show a box with the next upcoming note's key (large bold tex
 
 Before the game, show a setup panel with:
 - Audio file picker (local file, stored in `audioEl.src`)
-- BPM input (number, 40–300)
+- BPM input (number, 40–300) — the song's intrinsic tempo
+- Target BPM input (number, 40–300) — the desired playback tempo. Show a rate label (`× = targetBpm / bpm`) next to the input — gold when ≠ 1, dim white when = 1. Default 120, auto-tracks BPM (including the TAP detector) until the user manually edits it. On game start, set `audioEl.preservesPitch = true` and `audioEl.playbackRate = targetBpm / bpm`. All note timing is in intrinsic audio time, so the highway visibly speeds up or slows down to match.
 - Offbeat toggle (checkbox — shifts grid by `beatMs/2`)
 - Audio offset calibration: button opens a modal that plays a Web Audio API click track at 80 BPM, records 10 taps, computes `audioOffset = median(tapTime - nearestBeatTime)` (positive = user taps late = shift hit window forward)
 - Manual audio offset slider (±150 ms)

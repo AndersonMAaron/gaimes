@@ -436,7 +436,7 @@
 <!-- ════════ SETUP ════════ -->
 <div id="setupScreen">
   <h1>Tympo</h1>
-  <p class="subtitle"><span class="brand-ty">TY</span>pe on te<span class="brand-mpo">MPO</span> — each keystroke on the whole, half, quarter &amp; eighth-note beat</p>
+  <p class="subtitle"><span class="brand-ty">TY</span>pe on te<span class="brand-mpo">MPO</span> — keystrokes on the beat</p>
 
   <div class="form-group" id="fgMusic">
     <label class="form-label">Music File</label>
@@ -448,6 +448,14 @@
     <div class="bpm-row" style="align-items:center">
       <input type="number" id="bpmInput" value="120" min="40" max="300" step="1">
       <button class="tap-btn" id="tapBpmBtn"><span class="tap-label">TAP</span><span class="tap-sub">BPM</span></button>
+    </div>
+  </div>
+
+  <div class="form-group" id="fgTargetBpm" style="margin-top:-6px">
+    <label class="form-label">Target BPM <span style="color:rgba(255,255,255,0.18);font-size:0.62rem;text-transform:none;letter-spacing:0;font-weight:400">(plays audio at this tempo · ←→ to nudge)</span></label>
+    <div class="bpm-row" style="align-items:center">
+      <input type="number" id="targetBpmInput" value="120" min="40" max="300" step="1">
+      <div id="rateLabel" style="min-width:74px;text-align:center;font-size:0.95rem;font-weight:700;color:rgba(255,255,255,0.55);background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:10px 12px;letter-spacing:0.04em">1.00×</div>
     </div>
   </div>
 
@@ -811,7 +819,7 @@ let offbeat      = false;
 let audioOffset  = 0; // ms — positive shifts hit window later (compensates early-audio latency)
 
 // ── Keyboard navigation state ────────────────────────────────
-// Sections: 0=music 1=bpm 2=offbeat 3=offset 4=mode 5=difficulty 6=numpct 7=start
+// Sections: 0=music 1=bpm 2=targetBpm 3=offbeat 4=offset 5=mode 6=difficulty 7=numpct 8=start
 let menuSection    = 0;
 let menuModeIdx    = 0;
 let pauseFocusIdx  = 0;
@@ -825,7 +833,9 @@ let gameFreqData   = null;
 let analyserSrcEl  = null; // which audioEl the analyser is connected to
 let wmpPeaks       = null; // per-bar peak heights for WMP-style fall-off
 let songTitle    = '';
-let bpm          = 120;
+let bpm             = 120;
+let targetBpm       = 120;   // Audio playback tempo — playbackRate = targetBpm / bpm
+let targetBpmTouched= false; // True once the user has manually edited targetBpm; until then it tracks bpm
 let countdownVal = 3;
 let rafId        = null;
 
@@ -899,9 +909,11 @@ function generateNotes() {
   let id = 0;
 
   function pickChar() {
-    return Math.random() * 100 < numericPct
-      ? '0123456789'[Math.floor(Math.random() * 10)]
-      : 'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random() * 26)];
+    const r = Math.random() * 100;
+    if (r < numericPct) return '0123456789'[Math.floor(Math.random() * 10)];
+    // Space bar appears ~8% of the time in straight/shifty (not spacey/wordy which own space)
+    if ((mode === 'straight' || mode === 'shifty') && r < numericPct + 8) return ' ';
+    return 'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random() * 26)];
   }
 
   streamAnchorMs = snappedLeadIn + offbeatShift;
@@ -912,6 +924,7 @@ function generateNotes() {
     wordyQueue = [...WORDY_DICT[difficulty]].sort(() => Math.random() - 0.5);
     wordyQueueIdx = 0;
 
+    const wordStepMs = stepMs * 2; // half as often — gives time to type each word
     while (t < songEnd) {
       const word = wordyNextWord();
       result.push({
@@ -919,7 +932,7 @@ function generateNotes() {
         char: word[0],          // char = first letter (used for keyboard glow)
         lane: 0, hitTime: t, state: 'active', needsShift: false,
       });
-      t += stepMs;
+      t += wordStepMs;
     }
   } else {
     while (t < songEnd) {
@@ -966,36 +979,43 @@ document.addEventListener('keydown', e => {
     const inInput = document.activeElement &&
       (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
     if (!inInput) {
-      if (e.key === 'ArrowDown')  { e.preventDefault(); menuSection = Math.min(7, menuSection + 1); updateMenuFocus(); return; }
+      if (e.key === 'ArrowDown')  { e.preventDefault(); menuSection = Math.min(8, menuSection + 1); updateMenuFocus(); return; }
       if (e.key === 'ArrowUp')    { e.preventDefault(); menuSection = Math.max(0, menuSection - 1); updateMenuFocus(); return; }
       if (e.key === 'ArrowLeft') {
         e.preventDefault();
-        if (menuSection === 1) { bpm = Math.max(40, bpm - 1); document.getElementById('bpmInput').value = bpm; }
-        if (menuSection === 3) { audioOffset = Math.max(-150, audioOffset - 5); document.getElementById('audioOffsetInput').value = audioOffset; }
-        if (menuSection === 4) applyMenuMode((menuModeIdx + MENU_MODES.length - 1) % MENU_MODES.length);
-        if (menuSection === 5) applyDifficulty(DIFF_KEYS[(DIFF_KEYS.indexOf(difficulty) + 3) % 4]);
-        if (menuSection === 6) { numericPct = Math.max(0, numericPct - 1); document.getElementById('numPctInput').value = numericPct; }
+        if (menuSection === 1) { setBpm(bpm - 1); }
+        if (menuSection === 2) { setTargetBpm(targetBpm - 1); }
+        if (menuSection === 4) { audioOffset = Math.max(-150, audioOffset - 5); document.getElementById('audioOffsetInput').value = audioOffset; }
+        if (menuSection === 5) applyMenuMode((menuModeIdx + MENU_MODES.length - 1) % MENU_MODES.length);
+        if (menuSection === 6) applyDifficulty(DIFF_KEYS[(DIFF_KEYS.indexOf(difficulty) + 3) % 4]);
+        if (menuSection === 7) { numericPct = Math.max(0, numericPct - 1); document.getElementById('numPctInput').value = numericPct; }
         return;
       }
       if (e.key === 'ArrowRight') {
         e.preventDefault();
-        if (menuSection === 1) { bpm = Math.min(300, bpm + 1); document.getElementById('bpmInput').value = bpm; }
-        if (menuSection === 3) { audioOffset = Math.min(150, audioOffset + 5); document.getElementById('audioOffsetInput').value = audioOffset; }
-        if (menuSection === 4) applyMenuMode((menuModeIdx + 1) % MENU_MODES.length);
-        if (menuSection === 5) applyDifficulty(DIFF_KEYS[(DIFF_KEYS.indexOf(difficulty) + 1) % 4]);
-        if (menuSection === 6) { numericPct = Math.min(100, numericPct + 1); document.getElementById('numPctInput').value = numericPct; }
+        if (menuSection === 1) { setBpm(bpm + 1); }
+        if (menuSection === 2) { setTargetBpm(targetBpm + 1); }
+        if (menuSection === 4) { audioOffset = Math.min(150, audioOffset + 5); document.getElementById('audioOffsetInput').value = audioOffset; }
+        if (menuSection === 5) applyMenuMode((menuModeIdx + 1) % MENU_MODES.length);
+        if (menuSection === 6) applyDifficulty(DIFF_KEYS[(DIFF_KEYS.indexOf(difficulty) + 1) % 4]);
+        if (menuSection === 7) { numericPct = Math.min(100, numericPct + 1); document.getElementById('numPctInput').value = numericPct; }
         return;
       }
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         if (menuSection === 0) document.getElementById('musicFile').click();
         if (menuSection === 1) { document.getElementById('bpmInput').focus(); document.getElementById('bpmInput').select(); }
-        if (menuSection === 2) document.getElementById('offbeatToggle').click();
-        if (menuSection === 3) calOpen();
-        if (menuSection === 6) { document.getElementById('numPctInput').focus(); document.getElementById('numPctInput').select(); }
-        if (menuSection === 7) {
+        if (menuSection === 2) { document.getElementById('targetBpmInput').focus(); document.getElementById('targetBpmInput').select(); }
+        if (menuSection === 3) document.getElementById('offbeatToggle').click();
+        if (menuSection === 4) calOpen();
+        if (menuSection === 7) { document.getElementById('numPctInput').focus(); document.getElementById('numPctInput').select(); }
+        if (menuSection === 8) {
           const btn = document.getElementById('startBtn');
-          if (!btn.disabled) { bpm = parseInt(document.getElementById('bpmInput').value) || 120; beginGame(); }
+          if (!btn.disabled) {
+            bpm = parseInt(document.getElementById('bpmInput').value) || 120;
+            targetBpm = parseInt(document.getElementById('targetBpmInput').value) || bpm;
+            beginGame();
+          }
         }
         return;
       }
@@ -1046,12 +1066,18 @@ document.addEventListener('keydown', e => {
     ? SHIFT_SYMBOLS[e.key]
     : rawKey;
 
-  // Space bar consumed only by Spacey mode
-  if (e.key === ' ' && mode === 'spacey') {
-    e.preventDefault();
-    keyPressMap[' '] = performance.now();
-    processHitFlat(' ', false);
-    return;
+  // Space bar — spacey mode (offbeat mechanic) or straight/shifty (regular note, no shift)
+  if (e.key === ' ') {
+    if (mode === 'spacey') {
+      e.preventDefault();
+      keyPressMap[' '] = performance.now();
+      processHitFlat(' ', false);
+    } else if ((mode === 'straight' || mode === 'shifty') && !e.shiftKey && !e.ctrlKey && !e.altKey) {
+      e.preventDefault();
+      keyPressMap[' '] = performance.now();
+      processHitFlat(' ', false);
+    }
+    return; // space never falls through to letter/number handling
   }
 
   if (!/^[a-z0-9]$/.test(key)) return;
@@ -1134,39 +1160,51 @@ function processHitFlat(char, shiftHeld) {
 // Wordy Keys hit processing — letter-by-letter on the current active word
 function processHitWordy(char) {
   const nowMs = audioEl.currentTime * 1000 + audioOffset;
+  const { perfect: pw, good: gw, ok: ow } = hitWindows();
 
-  // Find the current word note: the active note nearest to (and past) the hit zone
+  // Only consider words that have REACHED the hit zone (the player must wait)
   const active = notes.filter(n => n.state === 'active' && n.word);
   if (!active.length) return;
 
-  // The "current" word is the one whose hitTime is closest to nowMs from behind,
-  // or the soonest upcoming one if nothing has arrived yet.
-  const behind  = active.filter(n => nowMs >= n.hitTime - hitWindows().ok);
-  const current = behind.length
-    ? behind.reduce((a, b) => Math.abs(nowMs - a.hitTime) <= Math.abs(nowMs - b.hitTime) ? a : b)
-    : active[0];
+  const arrived = active.filter(n => nowMs >= n.hitTime - ow);
+  if (!arrived.length) return; // word hasn't crossed the hit line yet — ignore keypress
+
+  // Current word = the one most recently arrived (smallest positive hitTime delta)
+  const current = arrived.reduce((a, b) =>
+    Math.abs(nowMs - a.hitTime) <= Math.abs(nowMs - b.hitTime) ? a : b
+  );
 
   const expected = current.word[current.letterIdx];
   if (char !== expected) {
-    // Wrong key — flash error but no miss scored here
+    // Wrong key — flash error, no miss penalty
     spawnFx(CW / 2, FL_HIT_Y - 22, '✕', '#ff5577');
     return;
   }
 
-  // Correct letter
+  // Correct letter — determine grade
+  let grade, pts;
+  if (current.letterIdx === 0) {
+    // First letter: grade locked to timing when the word crossed the hit line
+    const diff = Math.abs(nowMs - current.hitTime);
+    if (diff <= pw)      { grade = 'Perfect'; pts = 100; }
+    else if (diff <= gw) { grade = 'Good';    pts = 75;  }
+    else                 { grade = 'OK';      pts = 50;  }
+    // Store grade for all subsequent letters of this word
+    current.wordGrade = grade;
+    current.wordPts   = pts;
+  } else {
+    // Every subsequent letter inherits the first-letter grade
+    grade = current.wordGrade;
+    pts   = current.wordPts;
+  }
+
+  // Credit the letter
+  if (grade === 'Perfect') perfects++;
+  else if (grade === 'Good') goods++;
+  else oks++;
+
   current.letterIdx++;
   keyPressMap[char] = performance.now();
-
-  // Score this letter as a hit
-  const { perfect: pw, good: gw } = hitWindows();
-  const elapsed = nowMs - current.hitTime;
-  const perLetterMs = Math.max(100, getStreamStepMs() / current.word.length);
-  const expectedElapsed = current.letterIdx * perLetterMs;
-  const diff = Math.abs(elapsed - expectedElapsed);
-  let grade, pts;
-  if (diff <= pw)      { grade = 'Perfect'; pts = 100; perfects++; }
-  else if (diff <= gw) { grade = 'Good';    pts = 75;  goods++;    }
-  else                 { grade = 'OK';      pts = 50;  oks++;      }
   combo++;
   maxCombo = Math.max(maxCombo, combo);
   score += pts * multiplier();
@@ -1180,8 +1218,8 @@ function processHitWordy(char) {
   if (current.letterIdx < current.word.length) {
     current.char = current.word[current.letterIdx];
   } else {
-    // Word complete — mark hit and register high-score points bonus
-    current.state = 'hit';
+    // Word complete
+    current.state    = 'hit';
     current.hitGrade = grade;
     score += 50 * multiplier(); // word-completion bonus
     spawnFx(CW / 2, FL_HIT_Y - 50, current.word.toUpperCase() + '!', '#44ddff');
@@ -1259,9 +1297,9 @@ function checkMisses(nowMs) {
     const dt = nowMs - n.hitTime;
 
     if (n.word) {
-      // Wordy mode: deadline extends by 180ms per remaining letter
+      // Wordy mode: 350ms per remaining letter — generous window to finish typing
       const remaining   = n.word.length - n.letterIdx;
-      const deadline    = ow + remaining * 180;
+      const deadline    = ow + remaining * 350;
       if (dt <= deadline) continue;
       // Each untyped letter = one miss
       for (let i = 0; i < remaining; i++) { misses++; combo = 0; }
@@ -1338,39 +1376,51 @@ function drawFrame(nowMs) {
   ctx.clearRect(0, 0, CW, CH);
   ctx.fillStyle = '#03030c';
   ctx.fillRect(0, 0, CW, CH);
-  drawScanlines();
 
   if (gameState === 'COUNTDOWN') {
+    drawWaveform();
     drawFlatBackground();
+    drawKeyboard(0);
+    drawMultBar();
+    drawPowerupOverlay(0);
+    drawHUD(0);
+    drawScanlines();
     drawCountdown();
     return;
   }
 
+  drawWaveform();
   drawFlatBackground();
-  drawStageFloor();
-  drawFlatHitboxes();
-  drawFlatGuides();
   drawFlatNotes(nowMs);
-  drawFlatHitZone();
-
+  drawBeatIndicator(nowMs);
+  drawKeyboard(nowMs);
   drawNextNote();
   drawMultBar();
-  drawKeyboard(nowMs);
-  drawWaveform();
-  drawBeatIndicator(nowMs);
   drawPowerupOverlay(nowMs);
   drawHUD(nowMs);
-  drawParticleLayer();
   drawFxLayer();
+  drawParticleLayer();
+  drawScanlines();
 }
 
 function drawScanlines() {
   ctx.save();
   ctx.globalAlpha = 0.022;
-  ctx.strokeStyle = '#8899ff';
-  ctx.lineWidth = 1;
-  for (let y = 0; y < CH; y += 4) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(CW,y); ctx.stroke(); }
+  ctx.fillStyle = '#ffffff';
+  for (let y = 0; y < CH; y += 4) ctx.fillRect(0, y, CW, 1);
   ctx.restore();
+}
+
+function _modeColor() {
+  if (mode === 'shifty') return '#ffdd55';
+  if (mode === 'spacey') return '#cc88ff';
+  if (mode === 'wordy')  return '#44ddff';
+  return '#55ff99';
+}
+
+function _hexToRgba(hex, a) {
+  const [r,g,b] = hexToRgb(hex);
+  return `rgba(${r},${g},${b},${a})`;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1526,38 +1576,46 @@ function drawHwyHitZone() {
 function drawFlatBackground() {
   const tb = flatHBounds(FL_TOP), bb = flatHBounds(FL_HIT_Y);
 
-  // Deep indigo → electric navy highway fill
-  const grad = ctx.createLinearGradient(0, FL_TOP, 0, FL_HIT_Y);
-  grad.addColorStop(0,   '#04041a');
-  grad.addColorStop(0.5, '#07071e');
-  grad.addColorStop(1,   '#0c0c2c');
-  ctx.beginPath();
-  ctx.moveTo(tb.sx, FL_TOP); ctx.lineTo(tb.sx+tb.w, FL_TOP);
-  ctx.lineTo(bb.sx+bb.w, FL_HIT_Y); ctx.lineTo(bb.sx, FL_HIT_Y);
-  ctx.closePath(); ctx.fillStyle = grad; ctx.fill();
-
-  // Glowing edge lines — brighter toward the hit zone
   ctx.save();
-  const edgeG = ctx.createLinearGradient(0, FL_TOP, 0, FL_HIT_Y);
-  edgeG.addColorStop(0, 'rgba(180,190,255,0.12)');
-  edgeG.addColorStop(1, 'rgba(180,190,255,0.55)');
-  ctx.strokeStyle = edgeG;
-  ctx.lineWidth = 1.5;
-  ctx.shadowColor = 'rgba(100,120,255,0.55)';
-  ctx.shadowBlur = 8;
-  ctx.beginPath(); ctx.moveTo(tb.sx,     FL_TOP); ctx.lineTo(bb.sx,     FL_HIT_Y); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(tb.sx+tb.w, FL_TOP); ctx.lineTo(bb.sx+bb.w, FL_HIT_Y); ctx.stroke();
+  // Trapezoid fill — soft blue gradient
+  ctx.beginPath();
+  ctx.moveTo(tb.sx, FL_TOP); ctx.lineTo(tb.sx + tb.w, FL_TOP);
+  ctx.lineTo(bb.sx + bb.w, FL_HIT_Y); ctx.lineTo(bb.sx, FL_HIT_Y);
+  ctx.closePath();
+  const grad = ctx.createLinearGradient(0, FL_TOP, 0, FL_HIT_Y);
+  grad.addColorStop(0, 'rgba(18,28,55,0.7)');
+  grad.addColorStop(1, 'rgba(35,55,110,0.45)');
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Converging lane lines (10 lanes)
+  ctx.strokeStyle = 'rgba(120,160,220,0.18)';
+  ctx.lineWidth = 1;
+  const lanes = 10;
+  for (let i = 0; i <= lanes; i++) {
+    const f = i / lanes;
+    ctx.beginPath();
+    ctx.moveTo(tb.sx + tb.w * f, FL_TOP);
+    ctx.lineTo(bb.sx + bb.w * f, FL_HIT_Y);
+    ctx.stroke();
+  }
+
+  // Horizontal road marks — denser toward vanishing point
+  const nLines = 20;
+  for (let i = 1; i <= nLines; i++) {
+    const t = Math.pow(i / nLines, 2.2);
+    const y = FL_TOP + (FL_HIT_Y - FL_TOP) * t;
+    const b = flatHBounds(y);
+    ctx.strokeStyle = `rgba(120,160,220,${0.10 + 0.20 * t})`;
+    ctx.beginPath();
+    ctx.moveTo(b.sx, y);
+    ctx.lineTo(b.sx + b.w, y);
+    ctx.stroke();
+  }
   ctx.restore();
 
-  // Horizon fade
-  const mb = flatHBounds(FL_TOP + 90);
-  const fadeG = ctx.createLinearGradient(0, FL_TOP, 0, FL_TOP + 90);
-  fadeG.addColorStop(0, '#04040e'); fadeG.addColorStop(1, 'transparent');
-  ctx.fillStyle = fadeG;
-  ctx.beginPath();
-  ctx.moveTo(tb.sx, FL_TOP); ctx.lineTo(tb.sx+tb.w, FL_TOP);
-  ctx.lineTo(mb.sx+mb.w, FL_TOP+90); ctx.lineTo(mb.sx, FL_TOP+90);
-  ctx.closePath(); ctx.fill();
+  // Hit zone rendering (formerly drawFlatHitZone)
+  drawFlatHitZone();
 }
 
 function drawFlatGuides() {
@@ -1583,10 +1641,17 @@ function drawFlatNotes(nowMs) {
   const visible = notes.filter(n => {
     if (n.state !== 'active') return false;
     const sy = flatNoteY(n.hitTime, nowMs);
-    return sy > FL_TOP - 50 && sy < FL_HIT_Y + 10;
+    // Word notes: show until deadline (freeze keeps them at hit line, never below)
+    if (n.word) return sy > FL_TOP - 50;
+    return sy > FL_TOP - 40 && sy < FL_HIT_Y + 40;
   });
   visible.sort((a,b) => flatNoteY(a.hitTime,nowMs)-flatNoteY(b.hitTime,nowMs));
-  for (const note of visible) drawFlatNote(note, flatNoteY(note.hitTime, nowMs));
+  for (const note of visible) {
+    const sy = flatNoteY(note.hitTime, nowMs);
+    // Freeze word banners at the hit line once they arrive
+    const drawY = note.word ? Math.min(sy, FL_HIT_Y) : sy;
+    drawFlatNote(note, drawY);
+  }
 }
 
 function drawFlatNote(note, sy) {
@@ -1636,89 +1701,85 @@ function drawFlatNote(note, sy) {
     return;
   }
 
-  // Space bar note: a wide bar spanning the full highway width
+  // Space bar note: a wide purple bar spanning the full highway width
   if (note.char === ' ') {
     const { sx, w } = flatHBounds(sy);
     const depth = clamp((sy - FL_TOP) / FL_H, 0, 1);
-    const nH  = 4 + depth * 10;
+    const h = 10 + 18 * depth;
     const col = '#cc88ff';
     ctx.save();
-    ctx.shadowColor = col; ctx.shadowBlur = 4 + depth * 12;
-    const fg = ctx.createLinearGradient(sx, sy - nH, sx, sy);
-    fg.addColorStop(0, lighten(col, 0.35)); fg.addColorStop(1, darken(col, 0.25));
-    rrect(ctx, sx, sy - nH, w, nH, 3); ctx.fillStyle = fg; ctx.fill();
-    if (depth > 0.45) {
-      ctx.font = `bold ${Math.floor(4 + depth * 8)}px "Consolas",monospace`;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillStyle = '#07070f';
-      ctx.fillText('SPACE', sx + w / 2, sy - nH / 2);
-    }
+    const grad = ctx.createLinearGradient(0, sy - h/2, 0, sy + h/2);
+    grad.addColorStop(0, lighten(col, 0.5));
+    grad.addColorStop(1, darken(col, 0.4));
+    ctx.fillStyle = grad;
+    ctx.shadowColor = col;
+    ctx.shadowBlur = 12 + 6 * depth;
+    rrect(ctx, sx, sy - h/2, w, h, 4 + 5 * depth);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    rrect(ctx, sx + 4, sy - h/2 + 1.5, w - 8, 1.5, 1);
+    ctx.fill();
+    const fs = 8 + 14 * depth;
+    ctx.font = `bold ${fs}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#fff';
+    ctx.fillText('␣', CW / 2, sy);
     ctx.restore();
     return;
   }
 
   const depth = clamp((sy - FL_TOP) / FL_H, 0, 1);
-  const sx  = flatNoteX(note.char, sy);
-  const nW  = 16 + depth * 24;
-  const nH  = 12 + depth * 28;
-  const r   = clamp(depth * 9, 2, 9);
-  const nX  = sx - nW/2, nY = sy - nH;
+  const cx = flatNoteX(note.char, sy);
+  const w  = 16 + 24 * depth;
+  const h  = 12 + 28 * depth;
+  const r  = 2 + 7 * depth;
   const col = note.needsShift ? '#ffaa44' : '#55ff99';
 
   ctx.save();
-  ctx.shadowColor = col; ctx.shadowBlur = 8 + depth * 20;
-  const fg = ctx.createLinearGradient(nX, nY, nX, sy);
-  fg.addColorStop(0, lighten(col, 0.45)); fg.addColorStop(0.5, col); fg.addColorStop(1, darken(col, 0.3));
-  rrect(ctx, nX, nY, nW, nH, r); ctx.fillStyle = fg; ctx.fill();
-  if (nH > 12) {
-    rrect(ctx, nX+2, nY+2, nW-4, Math.min(nH*0.3, 8), r-1);
-    ctx.fillStyle = 'rgba(255,255,255,0.28)'; ctx.fill();
-  }
+  const grad = ctx.createLinearGradient(0, sy - h/2, 0, sy + h/2);
+  grad.addColorStop(0, lighten(col, 0.45));
+  grad.addColorStop(1, darken(col, 0.45));
+  ctx.fillStyle = grad;
+  ctx.shadowColor = col;
+  ctx.shadowBlur = 6 + 10 * depth;
+  rrect(ctx, cx - w/2, sy - h/2, w, h, r);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  rrect(ctx, cx - w/2 + 2, sy - h/2 + 2, w - 4, 1.5 + 1.5 * depth, 1);
+  ctx.fill();
+  const fs = 7 + 16 * depth;
+  ctx.font = `bold ${fs}px monospace`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#0a0a18';
+  ctx.fillText(note.char.toUpperCase(), cx, sy);
   ctx.restore();
-
-  if (nH > 10) {
-    const fs = Math.floor(7 + depth * 15);
-    ctx.save();
-    ctx.font = `bold ${fs}px "Consolas",monospace`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#07070f'; ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 2;
-    ctx.fillText(note.char.toUpperCase(), sx, nY + nH/2);
-    ctx.restore();
-  }
 }
 
 function drawFlatHitZone() {
   const { sx, w } = flatHBounds(FL_HIT_Y);
-  const diffCol = DIFFICULTY_DEFS[difficulty].color;
-  const flash   = laneFlash[0];
-
-  // Wide ambient bloom beneath the line (pulses with hits)
-  const bloomAlpha = 0.10 + flash * 0.18;
-  const bloomG = ctx.createLinearGradient(0, FL_HIT_Y - 48, 0, FL_HIT_Y + 8);
-  bloomG.addColorStop(0, diffCol + '00');
-  bloomG.addColorStop(0.7, diffCol + Math.round(bloomAlpha * 255).toString(16).padStart(2,'0'));
-  bloomG.addColorStop(1,   diffCol + '00');
-  ctx.fillStyle = bloomG;
-  ctx.fillRect(sx - 12, FL_HIT_Y - 48, w + 24, 56);
+  const color = _modeColor();
+  const flash = laneFlash[0];
 
   ctx.save();
+  ctx.shadowColor = color;
+  ctx.shadowBlur  = 30;
+  ctx.strokeStyle = color;
+  ctx.lineWidth   = 3;
+  ctx.beginPath();
+  ctx.moveTo(sx, FL_HIT_Y);
+  ctx.lineTo(sx + w, FL_HIT_Y);
+  ctx.stroke();
 
-  // Glow line — difficulty color
-  ctx.shadowColor = diffCol;
-  ctx.shadowBlur  = 18 + flash * 20;
-  ctx.strokeStyle = diffCol;
-  ctx.lineWidth   = 2;
-  ctx.globalAlpha = 0.75 + flash * 0.25;
-  ctx.beginPath(); ctx.moveTo(sx, FL_HIT_Y); ctx.lineTo(sx + w, FL_HIT_Y); ctx.stroke();
-
-  // Bright white core
-  ctx.shadowBlur  = 4;
-  ctx.strokeStyle = `rgba(255,255,255,${0.55 + flash * 0.4})`;
-  ctx.lineWidth   = 1;
-  ctx.beginPath(); ctx.moveTo(sx, FL_HIT_Y); ctx.lineTo(sx + w, FL_HIT_Y); ctx.stroke();
-
+  if (flash > 0.02) {
+    ctx.shadowBlur = 50;
+    ctx.fillStyle = _hexToRgba(color, flash * 0.25);
+    ctx.fillRect(sx, FL_HIT_Y - 4, w, 12);
+  }
   ctx.restore();
-
 }
 
 
@@ -1834,10 +1895,14 @@ function drawWordyPreview() {
   const active  = notes.filter(n => n.state === 'active' && n.word);
   if (!active.length) return;
 
-  const behind  = active.filter(n => nowMs >= n.hitTime - hitWindows().ok * 2);
-  const current = behind.length
-    ? behind.reduce((a, b) => Math.abs(nowMs - a.hitTime) <= Math.abs(nowMs - b.hitTime) ? a : b)
-    : active[0];
+  // Only show preview once the word has crossed the hit line (matches typing gate)
+  const arrived = active.filter(n => nowMs >= n.hitTime - hitWindows().ok);
+  if (!arrived.length) return; // nothing at the hit line yet
+
+  const current = arrived.reduce((a, b) =>
+    Math.abs(nowMs - a.hitTime) <= Math.abs(nowMs - b.hitTime) ? a : b
+  );
+  // Next word = the soonest active note that isn't current (may still be approaching)
   const nextWord = active.find(n => n !== current);
 
   const diffCol = '#44ddff';
@@ -1939,207 +2004,135 @@ function drawWordyPreview() {
 function drawNextNote() {
   if (mode === 'wordy') { drawWordyPreview(); return; }
 
-  const next = notes.find(n => n.state === 'active');
-  if (!next) return;
+  const upcoming = notes.filter(n => n.state === 'active').slice(0, 5);
+  if (!upcoming.length) return;
 
-  const isSpace = next.char === ' ';
-  const char    = isSpace ? '␣' : next.char.toUpperCase();
-  const color   = isSpace ? '#cc88ff' : (next.needsShift ? '#ffaa44' : '#55aaff');
-  const modLabel = next.needsShift ? '⇧ SHIFT' : '';
+  const first = upcoming[0];
+  const isSpace = first.char === ' ';
+  const noteColor = (n) => n.char === ' ' ? '#cc88ff' : (n.needsShift ? '#ffaa44' : '#55ff99');
+  const color = noteColor(first);
 
-  const cx = CW / 2;
-  const boxW = modLabel ? 134 : 96;
-  const boxH = modLabel ? 80 : 72;
-  const boxX = cx - boxW / 2;
-  const boxY = FL_HIT_Y + 36;
-  const r = 12;
+  const wideBox = !!first.needsShift;
+  const boxW = wideBox ? 130 : 90;
+  const boxH = 90;
+  const queueW = 4 * 46 - 6;
+  const totalW = boxW + 14 + queueW;
+  const startX = CW/2 - totalW/2;
+  const cx = startX + boxW/2;
+  const cy = FL_HIT_Y + 95;
 
   ctx.save();
+  ctx.fillStyle = 'rgba(15,20,35,0.85)';
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
   ctx.shadowColor = color;
-  ctx.shadowBlur = 28;
-
-  // Background
-  ctx.fillStyle = color + '18';
-  rrect(ctx, boxX, boxY, boxW, boxH, r); ctx.fill();
-  ctx.strokeStyle = color + '99';
-  ctx.lineWidth = 1.5;
-  rrect(ctx, boxX, boxY, boxW, boxH, r); ctx.stroke();
-
-  // Big character
   ctx.shadowBlur = 12;
-  ctx.font = `bold 42px 'Consolas',monospace`;
+  rrect(ctx, cx - boxW/2, cy - boxH/2, boxW, boxH, 8);
+  ctx.fill();
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  ctx.font = 'bold 54px monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#ffffff';
-  ctx.fillText(char, cx, boxY + (modLabel ? boxH * 0.40 : boxH / 2));
-
-  // Modifier label
-  if (modLabel) {
-    ctx.font = `700 12px 'Segoe UI',sans-serif`;
-    ctx.fillStyle = color;
-    ctx.fillText(modLabel, cx, boxY + boxH - 11);
+  ctx.fillStyle = color;
+  const txt = isSpace ? '␣' : first.char.toUpperCase();
+  ctx.fillText(txt, cx, cy - (first.needsShift ? 10 : 0));
+  if (first.needsShift) {
+    ctx.font = 'bold 11px monospace';
+    ctx.fillStyle = '#ffaa44';
+    ctx.fillText('⇧ SHIFT', cx, cy + 28);
   }
 
+  let qx = cx + boxW/2 + 14;
+  for (let i = 1; i < upcoming.length; i++) {
+    const n = upcoming[i];
+    const c = noteColor(n);
+    const w = 40, h = 52;
+    ctx.fillStyle = 'rgba(15,20,35,0.7)';
+    ctx.strokeStyle = c;
+    ctx.lineWidth = 1.5;
+    rrect(ctx, qx, cy - h/2, w, h, 5);
+    ctx.fill();
+    ctx.stroke();
+    ctx.font = 'bold 22px monospace';
+    ctx.fillStyle = c;
+    ctx.fillText(n.char === ' ' ? '␣' : n.char.toUpperCase(), qx + w/2, cy);
+    qx += w + 6;
+  }
   ctx.restore();
-
-  // Queue preview — next 4 upcoming notes to the right of the main box
-  const queue = notes.filter(n => n.state === 'active').slice(1, 5);
-  if (queue.length) {
-    const qSize = 38, qGap = 6;
-    const qX0 = boxX + boxW + 12;
-    const qY  = boxY + (boxH - qSize) / 2;
-
-    ctx.save();
-    ctx.shadowBlur = 0;
-    queue.forEach((qn, i) => {
-      const qColor = qn.char === ' ' ? '#cc88ff' : (qn.needsShift ? '#ffaa44' : '#55aaff');
-      const qx = qX0 + i * (qSize + qGap);
-      ctx.globalAlpha = 0.72 - i * 0.13;
-
-      ctx.fillStyle = qColor + '20';
-      rrect(ctx, qx, qY, qSize, qSize, 6); ctx.fill();
-      ctx.strokeStyle = qColor + '80';
-      ctx.lineWidth = 1;
-      rrect(ctx, qx, qY, qSize, qSize, 6); ctx.stroke();
-
-      ctx.font = `bold 18px 'Consolas',monospace`;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillStyle = '#ffffff';
-      ctx.fillText(qn.char === ' ' ? '␣' : qn.char.toUpperCase(), qx + qSize / 2, qY + qSize / 2);
-    });
-    ctx.restore();
-  }
 }
 
 // ─── Combo multiplier progress bar ──────────────────────────
 
 function drawMultBar() {
-  const topY  = FL_TOP;
-  const botY  = FL_HIT_Y;
-  const rEdge = flatHBounds(botY).sx + flatHBounds(botY).w;
-
-  const barX = rEdge + 14;
-  const barW = 14;
-  const barH = botY - topY;
-  const segH = barH / 4;
-
-  const isDoubled = activePowerup?.type === 'double';
-  const TIERS = [
-    { min: 0,  span:  5, color: '#5599ff', label: isDoubled ? '×2' : '×1' },
-    { min: 5,  span:  8, color: '#55ff99', label: isDoubled ? '×4' : '×2' },
-    { min: 13, span: 12, color: '#ffaa44', label: isDoubled ? '×6' : '×3' },
-    { min: 25, span:  1, color: '#ff5599', label: isDoubled ? '×8' : '×4' },
+  const x = 750, y = FL_TOP, w = 28, h = FL_HIT_Y - FL_TOP;
+  const tiers = [
+    { thresh: 0,  color: '#5599ff', label: '×1' },
+    { thresh: 3,  color: '#55ff99', label: '×2' },
+    { thresh: 6,  color: '#ffaa44', label: '×3' },
+    { thresh: 12, color: '#ff88cc', label: '×4' },
   ];
+  const doubleActive = activePowerup && activePowerup.type === 'double';
+  const doubledLabels = ['×2','×4','×6','×8'];
+  const tierH = h / 4;
 
   ctx.save();
-
-  // Track background
-  ctx.fillStyle = 'rgba(255,255,255,0.05)';
-  rrect(ctx, barX, topY, barW, barH, 4); ctx.fill();
-
-  // Clip segment fills to bar shape
-  ctx.save();
-  rrect(ctx, barX, topY, barW, barH, 4); ctx.clip();
+  ctx.fillStyle = 'rgba(15,20,35,0.7)';
+  ctx.strokeStyle = 'rgba(120,160,220,0.3)';
+  ctx.lineWidth = 1;
+  rrect(ctx, x, y, w, h, 6);
+  ctx.fill();
+  ctx.stroke();
 
   for (let i = 0; i < 4; i++) {
-    const t      = TIERS[i];
-    const segBot = botY - i * segH;
-    const fillPct = i === 3
-      ? (combo >= 25 ? 1 : 0)
-      : combo >= t.min + t.span ? 1
-        : combo > t.min ? (combo - t.min) / t.span
-        : 0;
-
-    if (fillPct > 0) {
-      const fillH = segH * fillPct;
-      const grad  = ctx.createLinearGradient(0, segBot - fillH, 0, segBot);
-      grad.addColorStop(0, t.color + '88');
-      grad.addColorStop(1, t.color + 'ee');
-      ctx.fillStyle = grad;
-      ctx.fillRect(barX, segBot - fillH, barW, fillH);
-    }
-  }
-  ctx.restore(); // remove clip
-
-  // Segment dividers
-  ctx.strokeStyle = 'rgba(0,0,0,0.45)';
-  ctx.lineWidth = 1;
-  for (let i = 1; i < 4; i++) {
-    const ly = botY - i * segH;
-    ctx.beginPath(); ctx.moveTo(barX, ly); ctx.lineTo(barX + barW, ly); ctx.stroke();
-  }
-
-  // Border
-  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
-  ctx.lineWidth = 1;
-  rrect(ctx, barX, topY, barW, barH, 4); ctx.stroke();
-
-  // Tier labels
-  ctx.font = `bold 9px 'Segoe UI',sans-serif`;
-  ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-  for (let i = 0; i < 4; i++) {
-    const t       = TIERS[i];
-    const midY    = botY - i * segH - segH / 2;
-    const reached = combo >= t.min;
-    if (isDoubled) {
-      ctx.fillStyle  = reached ? '#ffdd55' : 'rgba(255,221,85,0.28)';
-      ctx.shadowColor = '#ffdd55';
-      ctx.shadowBlur  = reached ? 8 : 0;
-    } else {
-      ctx.fillStyle  = reached ? t.color : 'rgba(255,255,255,0.18)';
+    const t = tiers[i];
+    const yi = y + h - (i + 1) * tierH;
+    const reached = combo >= t.thresh;
+    if (reached) {
+      ctx.fillStyle = doubleActive ? _hexToRgba('#ffdd55', 0.4) : _hexToRgba(t.color, 0.5);
+      ctx.shadowColor = doubleActive ? '#ffdd55' : t.color;
+      ctx.shadowBlur = 8;
+      ctx.fillRect(x + 2, yi + 2, w - 4, tierH - 4);
       ctx.shadowBlur = 0;
     }
-    ctx.fillText(t.label, barX + barW + 5, midY);
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    if (reached && doubleActive) {
+      ctx.fillStyle = '#ffdd55';
+      ctx.shadowColor = '#ffdd55';
+      ctx.shadowBlur = 8;
+    } else {
+      ctx.fillStyle = reached ? '#fff' : '#556';
+    }
+    ctx.fillText(doubleActive ? doubledLabels[i] : t.label, x + w/2, yi + tierH/2);
+    ctx.shadowBlur = 0;
   }
-  ctx.shadowBlur = 0;
-
-  // Glow on active segment
-  if (combo > 0) {
-    const ai  = combo >= 25 ? 3 : combo >= 13 ? 2 : combo >= 5 ? 1 : 0;
-    const t   = TIERS[ai];
-    ctx.shadowColor = t.color; ctx.shadowBlur = 12;
-    ctx.strokeStyle = t.color + 'bb'; ctx.lineWidth = 1.5;
-    ctx.strokeRect(barX, botY - (ai + 1) * segH, barW, segH);
-  }
-
   ctx.restore();
 }
 
 // ─── Keyboard glow visualization ────────────────────────────
 
 function drawKeyboard(nowMs) {
-  // Bottom of upper-left quadrant: anchor bottom edge ~62% down the highway height
-  const kbBottom = Math.round(FL_TOP + (FL_HIT_Y - FL_TOP) * 0.60);
-  const kbTop    = kbBottom - 4 * KB_STEP_Y;
-
-  // Build glow map: char → { glow: 0–1, color }
-  // For each active note, compute how bright its key should be.
-  const glowMap = {};
-  for (const n of notes) {
-    if (n.state !== 'active') continue;
-    const c = n.char.toLowerCase();
-    const timeLeft = n.hitTime - nowMs;
-    if (timeLeft < -250) continue;
-
-    let glow;
-    if (timeLeft > 0) {
-      // Build from 0 (far away) to 1 (at hit zone). Use sqrt for a
-      // slow-then-fast ramp so the flash feels reactive near the hit.
-      glow = Math.sqrt(clamp(1 - timeLeft / TRAVEL_MS, 0, 1));
-    } else {
-      // Brief tail after the hit window — fades over 250 ms
-      glow = Math.max(0, 1 + timeLeft / 250);
+  // Find the next upcoming note (per char) for the approach glow
+  function nextFor(ch) {
+    let best = null;
+    for (const n of notes) {
+      if (n.state !== 'active') continue;
+      if ((n.char || '').toLowerCase() !== ch) continue;
+      if (n.hitTime < nowMs - 50) continue;
+      if (n.hitTime > nowMs + TRAVEL_MS * 1.5) break;
+      if (!best || n.hitTime < best.hitTime) best = n;
     }
-
-    const color = n.char === ' ' ? '#cc88ff' : (n.needsShift ? '#ffaa44' : '#55aaff');
-
-    if (!glowMap[c] || glow > glowMap[c].glow) {
-      glowMap[c] = { glow, color };
-    }
+    return best;
   }
 
+  const kbBottom = Math.round(FL_TOP + (FL_HIT_Y - FL_TOP) * 0.62);
+  const kbTop    = kbBottom - 4 * KB_STEP_Y;
+
   ctx.save();
-  ctx.textAlign    = 'center';
+  ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
   KB_ROWS.forEach((row, ri) => {
@@ -2147,91 +2140,79 @@ function drawKeyboard(nowMs) {
     const rowX = KB_LEFT + row.stagger * KB_STEP_X;
 
     row.chars.forEach((ch, ci) => {
-      const kx  = rowX + ci * KB_STEP_X;
-      const ky  = rowY;
-      const gl  = glowMap[ch];
-      const glow  = gl ? gl.glow  : 0;
-      const color = gl ? gl.color : '#ffffff';
-      const r = 6;
+      const kx = rowX + ci * KB_STEP_X;
+      const ky = rowY;
 
-      // Key-press flash: bright green, decays over 180 ms
-      const pressAge  = keyPressMap[ch] != null ? performance.now() - keyPressMap[ch] : Infinity;
-      const pressGlow = clamp(1 - pressAge / 180, 0, 1);
-      const PRESS_COL = '#55ff99';
-
-      // Press flash takes priority over the approach glow
-      const activeColor = pressGlow > 0 ? PRESS_COL : color;
-      const activeGlow  = pressGlow > 0 ? pressGlow : glow;
-      const isActive    = activeGlow > 0;
-
-      ctx.shadowBlur = 0;
-
-      // Key fill
-      ctx.fillStyle = isActive
-        ? activeColor + Math.round((0.04 + activeGlow * 0.28) * 255).toString(16).padStart(2,'0')
-        : 'rgba(255,255,255,0.03)';
-      rrect(ctx, kx, ky, KB_KEY_W, KB_KEY_H, r); ctx.fill();
-
-      // Outer glow
-      if (activeGlow > 0.05) {
-        ctx.shadowColor = activeColor;
-        ctx.shadowBlur  = 6 + activeGlow * 22;
-        ctx.strokeStyle = activeColor + Math.round(activeGlow * 0.55 * 255).toString(16).padStart(2,'0');
-        ctx.lineWidth   = 1;
-        rrect(ctx, kx, ky, KB_KEY_W, KB_KEY_H, r); ctx.stroke();
-        ctx.shadowBlur = 0;
+      const upcoming = nextFor(ch);
+      let glow = 0;
+      if (upcoming) {
+        const dt = upcoming.hitTime - nowMs;
+        glow = Math.sqrt(clamp(1 - dt / TRAVEL_MS, 0, 1));
       }
+      let flash = 0;
+      const kf = keyPressMap[ch];
+      if (kf != null && performance.now() - kf < 180) {
+        flash = 1 - (performance.now() - kf) / 180;
+      }
+      const baseColor = upcoming && upcoming.needsShift ? '#ffaa44' : '#5599ff';
+      const fillColor = flash > 0
+        ? '#55ff99'
+        : (glow > 0.05 ? lighten('#1c1c30', glow * 0.4) : '#1c1c30');
 
-      // Border
-      ctx.strokeStyle = isActive
-        ? activeColor + Math.round((0.14 + activeGlow * 0.66) * 255).toString(16).padStart(2,'0')
-        : 'rgba(255,255,255,0.07)';
-      ctx.lineWidth = isActive ? 1 + activeGlow * 0.8 : 1;
-      rrect(ctx, kx, ky, KB_KEY_W, KB_KEY_H, r); ctx.stroke();
+      ctx.fillStyle = fillColor;
+      ctx.shadowColor = flash > 0 ? '#55ff99' : baseColor;
+      ctx.shadowBlur = Math.max(flash * 14, glow * 12);
+      rrect(ctx, kx, ky, KB_KEY_W, KB_KEY_H, 3);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = glow > 0.05
+        ? _hexToRgba(baseColor, 0.4 + glow * 0.4)
+        : 'rgba(180,200,240,0.25)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
 
-      // Key label
-      ctx.shadowColor = isActive ? activeColor : 'transparent';
-      ctx.shadowBlur  = activeGlow > 0.05 ? activeGlow * 10 : 0;
-      ctx.fillStyle   = isActive
-        ? activeColor + Math.round((0.25 + activeGlow * 0.75) * 255).toString(16).padStart(2,'0')
-        : 'rgba(255,255,255,0.16)';
-      ctx.font = `bold 13px 'Consolas',monospace`;
-      ctx.fillText(ch.toUpperCase(), kx + KB_KEY_W / 2, ky + KB_KEY_H / 2);
+      ctx.fillStyle = (glow > 0.3 || flash > 0) ? '#fff' : '#8898aa';
+      ctx.font = 'bold 11px monospace';
+      ctx.fillText(ch.toUpperCase(), kx + KB_KEY_W/2, ky + KB_KEY_H/2);
     });
   });
 
-  // Space bar (only rendered in Spacey mode)
-  if (mode === 'spacey') {
+  // Space bar — rendered when relevant
+  if (mode === 'spacey' || mode === 'straight' || mode === 'shifty') {
     const spaceW = 5 * KB_STEP_X - KB_GAP_X;
-    const spaceX = KB_LEFT + Math.round((10 * KB_STEP_X - KB_GAP_X - spaceW) / 2);
+    const spaceX = KB_LEFT + 2 * KB_STEP_X;
     const spaceY = kbTop + 4 * KB_STEP_Y;
-    const gl     = glowMap[' '];
-    const glow   = gl ? gl.glow : 0;
-    const pressAge  = keyPressMap[' '] != null ? performance.now() - keyPressMap[' '] : Infinity;
-    const pressGlow = clamp(1 - pressAge / 180, 0, 1);
-    const activeColor = pressGlow > 0 ? '#55ff99' : '#cc88ff';
-    const activeGlow  = pressGlow > 0 ? pressGlow : glow;
-    const isActive    = activeGlow > 0;
-    const r = 5;
 
-    ctx.fillStyle = isActive
-      ? activeColor + Math.round((0.04 + activeGlow * 0.28) * 255).toString(16).padStart(2,'0')
-      : 'rgba(255,255,255,0.03)';
-    rrect(ctx, spaceX, spaceY, spaceW, KB_KEY_H, r); ctx.fill();
-
-    if (activeGlow > 0.05) {
-      ctx.shadowColor = activeColor; ctx.shadowBlur = 6 + activeGlow * 22;
-      ctx.strokeStyle = activeColor + Math.round(activeGlow * 0.55 * 255).toString(16).padStart(2,'0');
-      ctx.lineWidth = 1;
-      rrect(ctx, spaceX, spaceY, spaceW, KB_KEY_H, r); ctx.stroke();
-      ctx.shadowBlur = 0;
+    const upcoming = nextFor(' ');
+    let glow = 0;
+    if (upcoming) {
+      const dt = upcoming.hitTime - nowMs;
+      glow = Math.sqrt(clamp(1 - dt / TRAVEL_MS, 0, 1));
     }
+    let flash = 0;
+    const kf = keyPressMap[' '];
+    if (kf != null && performance.now() - kf < 180) {
+      flash = 1 - (performance.now() - kf) / 180;
+    }
+    const fillColor = flash > 0
+      ? '#55ff99'
+      : (glow > 0.05 ? lighten('#1c1c30', glow * 0.4) : '#1c1c30');
 
-    ctx.strokeStyle = isActive
-      ? activeColor + Math.round((0.14 + activeGlow * 0.66) * 255).toString(16).padStart(2,'0')
-      : 'rgba(255,255,255,0.07)';
-    ctx.lineWidth = isActive ? 1 + activeGlow * 0.8 : 1;
-    rrect(ctx, spaceX, spaceY, spaceW, KB_KEY_H, r); ctx.stroke();
+    ctx.fillStyle = fillColor;
+    ctx.shadowColor = flash > 0 ? '#55ff99' : '#cc88ff';
+    ctx.shadowBlur = Math.max(flash * 14, glow * 14);
+    rrect(ctx, spaceX, spaceY, spaceW, KB_KEY_H, 4);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = glow > 0.05
+      ? _hexToRgba('#cc88ff', 0.4 + glow * 0.4)
+      : 'rgba(180,200,240,0.25)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.fillStyle = (glow > 0.3 || flash > 0) ? '#fff' : '#8898aa';
+    ctx.font = 'bold 10px monospace';
+    ctx.fillText('SPACE', spaceX + spaceW/2, spaceY + KB_KEY_H/2);
   }
 
   ctx.restore();
@@ -2258,86 +2239,60 @@ function ensureAnalyser() {
 }
 
 function drawWaveform() {
-  if (!gameAnalyser || !gameFreqData || gameState !== 'PLAYING') return;
+  if (!gameAnalyser || !gameFreqData) return;
+  if (gameState !== 'PLAYING' && gameState !== 'COUNTDOWN') return;
   gameAnalyser.getByteFrequencyData(gameFreqData);
 
   const NUM_BARS = 26;
-  const BAR_W    = 4;
-  const BAR_GAP  = 2;
-  const CX       = 92;
-  const diffCol  = DIFFICULTY_DEFS[difficulty].color;
-  const bins     = gameAnalyser.frequencyBinCount; // 256
+  const cx = 92, cy = 460;
+  const panelH = 86, panelW = 130;
+  const barW = (panelW - 4) / NUM_BARS;
 
-  // Panel geometry — same footprint as before
-  const PANEL_W   = NUM_BARS * (BAR_W + BAR_GAP) - BAR_GAP; // 154px
-  const LEFT_X    = CX - PANEL_W / 2;
-  const PANEL_TOP = FL_HIT_Y - 95;
-  const PANEL_BOT = FL_HIT_Y - 9;
-  const PANEL_H   = PANEL_BOT - PANEL_TOP; // 86px
-
-  // Init peak tracker
   if (!wmpPeaks || wmpPeaks.length !== NUM_BARS) wmpPeaks = new Float32Array(NUM_BARS);
 
   ctx.save();
-
-  // Background panel
-  ctx.globalAlpha = 0.28;
-  ctx.fillStyle = '#06061a';
-  rrect(ctx, LEFT_X - 4, PANEL_TOP - 4, PANEL_W + 8, PANEL_H + 8, 5);
+  ctx.fillStyle = 'rgba(8,12,24,0.7)';
+  rrect(ctx, cx - panelW/2, cy - panelH/2 - 14, panelW, panelH + 22, 6);
   ctx.fill();
-
-  // Subtle horizontal scan-line grid
-  ctx.globalAlpha = 0.07;
-  ctx.strokeStyle = '#8899cc';
+  ctx.strokeStyle = 'rgba(80,140,220,0.3)';
   ctx.lineWidth = 1;
-  for (let g = 0; g <= 4; g++) {
-    const gy = PANEL_BOT - g * (PANEL_H / 4);
-    ctx.beginPath(); ctx.moveTo(LEFT_X, gy); ctx.lineTo(LEFT_X + PANEL_W, gy); ctx.stroke();
-  }
+  ctx.stroke();
+  ctx.font = 'bold 8px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#88aabb';
+  ctx.fillText('FREQ', cx, cy - panelH/2 - 4);
 
-  // Bars — logarithmic frequency mapping (bass on left, treble on right)
-  // Map 26 bars over roughly 0–8 kHz (bins 0–93 of 256 at 44100 Hz)
-  const BIN_MAX = Math.floor(bins * 0.36);
+  const totalBins = 93;
   for (let b = 0; b < NUM_BARS; b++) {
-    const t0 = Math.pow(b / NUM_BARS, 1.7);
-    const t1 = Math.pow((b + 1) / NUM_BARS, 1.7);
-    const f0 = Math.floor(t0 * BIN_MAX);
-    const f1 = Math.max(f0 + 1, Math.floor(t1 * BIN_MAX));
-    let peak = 0;
-    for (let f = f0; f < f1 && f < bins; f++) peak = Math.max(peak, gameFreqData[f]);
+    const lo = Math.floor(Math.pow(b / NUM_BARS, 2) * totalBins);
+    const hi = Math.max(lo + 1, Math.floor(Math.pow((b + 1) / NUM_BARS, 2) * totalBins));
+    let v = 0;
+    for (let i = lo; i < hi && i < gameFreqData.length; i++) {
+      if (gameFreqData[i] > v) v = gameFreqData[i];
+    }
+    const barH = (v / 255) * panelH;
+    const x = cx - panelW/2 + 2 + b * barW;
+    const y = cy + panelH/2 - barH;
 
-    const barH  = (peak / 255) * PANEL_H;
-    const x     = LEFT_X + b * (BAR_W + BAR_GAP);
-    const barY  = PANEL_BOT - barH;
+    if (barH > 1) {
+      const grad = ctx.createLinearGradient(0, y + barH, 0, y);
+      grad.addColorStop(0, '#1a3370');
+      grad.addColorStop(0.5, '#55aaff');
+      grad.addColorStop(1, '#ddeeff');
+      ctx.fillStyle = grad;
+      ctx.shadowColor = '#55aaff';
+      ctx.shadowBlur = 4;
+      ctx.fillRect(x + 0.5, y, barW - 1, barH);
+      ctx.shadowBlur = 0;
+    }
 
-    // Gradient: base color dim at bottom → bright → near-white at top
-    const grad = ctx.createLinearGradient(x, PANEL_BOT, x, PANEL_TOP);
-    grad.addColorStop(0,    diffCol + '55');
-    grad.addColorStop(0.55, diffCol + 'cc');
-    grad.addColorStop(1,    '#ffffff99');
-    ctx.globalAlpha = 0.9;
-    ctx.fillStyle = grad;
-    ctx.fillRect(x, barY, BAR_W, barH);
-
-    // Glow pass
-    ctx.globalAlpha = 0.25;
-    ctx.shadowColor = diffCol;
-    ctx.shadowBlur  = 8;
-    ctx.fillStyle   = diffCol;
-    ctx.fillRect(x, barY, BAR_W, barH);
-    ctx.shadowBlur  = 0;
-
-    // Peak dot — decays at ~1.2px/frame
     wmpPeaks[b] = Math.max(wmpPeaks[b] - 1.2, barH);
-    const peakY = PANEL_BOT - wmpPeaks[b];
-    ctx.globalAlpha = 0.95;
-    ctx.fillStyle   = '#ffffff';
-    ctx.shadowColor = diffCol;
-    ctx.shadowBlur  = 6;
-    ctx.fillRect(x, peakY - 2, BAR_W, 2);
-    ctx.shadowBlur  = 0;
+    if (wmpPeaks[b] > 1) {
+      const py = cy + panelH/2 - wmpPeaks[b];
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(x + 0.5, py - 1.5, barW - 1, 2);
+    }
   }
-
   ctx.restore();
 }
 
@@ -2347,43 +2302,26 @@ function drawBeatIndicator(nowMs) {
   const pulse  = clamp(1 - phase / (stepMs * 0.3), 0, 1);
 
   const cx = 210, cy = FL_HIT_Y;
-  const baseR = 14, r = baseR + pulse * 11;
   const col = DIFFICULTY_DEFS[difficulty].color;
 
   ctx.save();
-
-  // Expanding ghost ring — travels outward as pulse decays
-  if (pulse > 0.05) {
-    const ringR = r * (1 + (1 - pulse) * 0.7);
-    ctx.globalAlpha = pulse * 0.28;
+  if (pulse < 1 && pulse > 0) {
+    const ghostR = 25 + (1 - pulse) * 40;
+    ctx.globalAlpha = pulse * 0.4;
     ctx.strokeStyle = col;
-    ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.arc(cx, cy, ringR, 0, Math.PI * 2); ctx.stroke();
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, ghostR, 0, Math.PI * 2);
+    ctx.stroke();
   }
-
-  // Radial glow bloom
-  if (pulse > 0.05) {
-    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 3.4);
-    g.addColorStop(0, col + 'bb');
-    g.addColorStop(1, col + '00');
-    ctx.globalAlpha = pulse * 0.5;
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(cx, cy, r * 3.4, 0, Math.PI * 2); ctx.fill();
-  }
-
-  // Filled disc
-  ctx.globalAlpha = 0.05 + pulse * 0.32;
-  ctx.fillStyle = col;
-  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
-
-  // Main ring with shadow glow
-  ctx.globalAlpha = 0.28 + pulse * 0.72;
-  ctx.strokeStyle = col;
-  ctx.lineWidth   = 1.5;
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = _hexToRgba(col, 0.3 + 0.7 * pulse);
   ctx.shadowColor = col;
-  ctx.shadowBlur  = pulse * 18;
-  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
-
+  ctx.shadowBlur = 10 + 30 * pulse;
+  ctx.beginPath();
+  const r = 12 + 13 * pulse;
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
   ctx.restore();
 }
 
@@ -2400,143 +2338,104 @@ function drawPowerupOverlay(nowMs) {
     ctx.restore();
   }
 
-  if (gameState !== 'PLAYING') return;
-
-  // Position: right of the mult bar (barX = rEdge+12, barW=10, labels ~20px wide)
-  const rEdge  = flatHBounds(FL_HIT_Y).sx + flatHBounds(FL_HIT_Y).w;
-  const slotCX = rEdge + 14 + 14 + 46; // center X — clear of mult bar labels
-  const slotH  = (FL_HIT_Y - FL_TOP) / 4;
-  const R      = 15; // icon circle radius
-
-  const keys   = ['ArrowUp','ArrowRight','ArrowDown','ArrowLeft'];
-  const ready  = powerupCharge > 0 && !pu;
-  const pulse  = ready ? 0.5 + 0.5 * Math.sin(nowMs / 220) : 0;
+  const SHORTS = { double: '×2', allP: 'PPPP', hacker: 'HACK', autopilot: 'AUTO' };
+  const slotOrder = ['ArrowUp','ArrowDown','ArrowRight','ArrowLeft'];
+  const sx = 815, startY = FL_TOP + 24;
+  const slotR = 20, gap = 18;
+  const ready = powerupCharge > 0 && !pu;
 
   ctx.save();
-  ctx.textAlign = 'center';
+  for (let i = 0; i < slotOrder.length; i++) {
+    const key = slotOrder[i];
+    const def = POWERUPS[key];
+    const cy = startY + i * (slotR * 2 + gap);
+    const isActive = pu && pu.type === def.type;
 
-  keys.forEach((k, i) => {
-    const def     = POWERUPS[k];
-    const isActive = pu?.type === def.type;
-    const slotMidY = FL_TOP + slotH * i + slotH / 2;
-
-    // Dim base circle
-    ctx.globalAlpha = isActive ? 1 : ready ? 0.45 + pulse * 0.45 : 0.18;
-    ctx.fillStyle = isActive ? def.color + '22' : 'rgba(255,255,255,0.04)';
-    ctx.shadowBlur = 0;
-    ctx.beginPath(); ctx.arc(slotCX, slotMidY, R, 0, Math.PI * 2); ctx.fill();
-
-    // Glow ring when ready or active
+    ctx.fillStyle = 'rgba(15,20,35,0.7)';
+    ctx.strokeStyle = (ready || isActive) ? def.color : 'rgba(80,100,140,0.4)';
+    ctx.lineWidth = 1.8;
     if (ready || isActive) {
       ctx.shadowColor = def.color;
-      ctx.shadowBlur  = isActive ? 14 : 6 + pulse * 10;
-      ctx.strokeStyle = isActive ? def.color : def.color + Math.round((0.4 + pulse * 0.6) * 255).toString(16).padStart(2,'0');
-      ctx.lineWidth   = 1.5;
-      ctx.beginPath(); ctx.arc(slotCX, slotMidY, R, 0, Math.PI * 2); ctx.stroke();
-      ctx.shadowBlur = 0;
-    } else {
-      ctx.strokeStyle = 'rgba(255,255,255,0.10)';
-      ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.arc(slotCX, slotMidY, R, 0, Math.PI * 2); ctx.stroke();
+      ctx.shadowBlur = 14;
     }
+    ctx.beginPath();
+    ctx.arc(sx, cy, slotR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
 
-    // Depleting arc when this powerup is active
     if (isActive) {
       const remaining = clamp((pu.expiresAt - nowMs) / pu.duration, 0, 1);
-      ctx.globalAlpha = 1;
       ctx.strokeStyle = def.color;
       ctx.lineWidth = 3;
-      ctx.shadowColor = def.color; ctx.shadowBlur = 8;
       ctx.beginPath();
-      ctx.arc(slotCX, slotMidY, R + 4, -Math.PI/2, -Math.PI/2 + remaining * Math.PI * 2);
+      ctx.arc(sx, cy, slotR - 3, -Math.PI/2, -Math.PI/2 + Math.PI * 2 * remaining);
       ctx.stroke();
-      ctx.shadowBlur = 0;
     }
 
-    // Arrow icon
-    ctx.globalAlpha = isActive ? 1 : ready ? 0.55 + pulse * 0.45 : 0.22;
-    ctx.fillStyle   = isActive ? def.color : ready ? def.color : 'rgba(255,255,255,0.5)';
-    ctx.font = `bold 10px "Consolas",monospace`;
+    ctx.font = 'bold 22px monospace';
+    ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(def.icon, slotCX, slotMidY);
+    ctx.fillStyle = (ready || isActive) ? def.color : '#556';
+    ctx.fillText(def.icon, sx, cy);
 
-    // Label below circle
-    ctx.globalAlpha = isActive ? 0.85 : ready ? 0.5 + pulse * 0.3 : 0.14;
-    ctx.fillStyle   = isActive ? def.color : ready ? def.color : 'rgba(255,255,255,0.5)';
-    ctx.font = 'bold 7px "Segoe UI",sans-serif';
-    ctx.textBaseline = 'top';
-    ctx.fillText(def.label, slotCX, slotMidY + R + 3);
-  });
-
+    ctx.font = 'bold 8px monospace';
+    ctx.fillStyle = (ready || isActive) ? def.color : '#556';
+    ctx.fillText(SHORTS[def.type] || '', sx, cy + slotR + 8);
+  }
   ctx.restore();
 }
 
 function drawHUD(nowMs) {
   ctx.save();
+  ctx.font = 'bold 11px monospace';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = '#88aabb';
+  ctx.fillText('SCORE', 20, 16);
 
-  ctx.font = 'bold 36px "Consolas",monospace';
-  ctx.textAlign='right'; ctx.textBaseline='top';
-  ctx.fillStyle='#fff'; ctx.shadowColor='rgba(85,153,255,0.55)'; ctx.shadowBlur=12;
-  ctx.fillText(score.toLocaleString(), CW-20, 10);
-
-  const totalJudged = perfects + goods + oks + misses;
-  if (totalJudged > 0) {
-    const acc = (perfects + goods + oks) / totalJudged * 100;
-    ctx.font = '12px "Segoe UI"';
-    ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.shadowBlur = 0;
-    ctx.fillText(`${acc.toFixed(1)}%`, CW-20, 52);
-  }
+  ctx.fillStyle = '#88ccff';
+  ctx.font = 'bold 32px monospace';
+  ctx.shadowColor = '#88ccff';
+  ctx.shadowBlur = 8;
+  ctx.fillText(score.toLocaleString(), 20, 30);
+  ctx.shadowBlur = 0;
 
   if (combo > 0) {
-    const streakColor = combo >= 25 ? '#ff5599' : combo >= 13 ? '#ffaa44' : combo >= 5 ? '#55ff99' : 'rgba(255,255,255,0.38)';
-    ctx.font = '11px "Segoe UI"';
-    ctx.fillStyle = streakColor;
-    ctx.shadowColor = streakColor; ctx.shadowBlur = combo >= 5 ? 6 : 0;
-    ctx.fillText(`${combo} streak`, CW-20, 67);
+    ctx.font = 'bold 14px monospace';
+    ctx.fillStyle = '#ffdd55';
+    ctx.shadowColor = '#ffdd55';
+    ctx.shadowBlur = 6;
+    ctx.fillText(`${combo}× COMBO`, 20, 70);
+    ctx.shadowBlur = 0;
   }
 
-  const mult = multiplier();
-  if (mult>1) {
-    ctx.font='bold 16px "Segoe UI"';
-    ctx.fillStyle='#ffdd55'; ctx.shadowColor='#ffdd55'; ctx.shadowBlur=8;
-    ctx.fillText(`×${mult} MULT`, CW-20, 84);
+  ctx.font = 'bold 12px monospace';
+  ctx.textAlign = 'right';
+  ctx.fillStyle = DIFFICULTY_DEFS[difficulty].color;
+  ctx.fillText(DIFFICULTY_DEFS[difficulty].label.toUpperCase(), CW - 20, 18);
+  ctx.fillStyle = _modeColor();
+  const modeLabel = (mode === 'wordy') ? 'WORDY KEYS' : (mode.toUpperCase() + ' KEYS');
+  ctx.fillText(modeLabel, CW - 20, 36);
+
+  if (bpm > 0 && Math.abs((targetBpm / bpm) - 1) > 0.005) {
+    ctx.fillStyle = '#ffdd55';
+    ctx.fillText('× ' + (targetBpm / bpm).toFixed(2), CW - 20, 54);
   }
-
-  if (combo>0) {
-    const sz=clamp(22+combo*0.12,22,42);
-    ctx.font=`bold ${sz}px "Consolas",monospace`;
-    ctx.textAlign='center'; ctx.textBaseline='top';
-    const cc=combo>=25?'#ff5599':combo>=13?'#ffaa44':combo>=5?'#55ff99':'#fff';
-    ctx.fillStyle=cc; ctx.shadowColor=cc; ctx.shadowBlur=14;
-    ctx.fillText(`${combo}x`, CW/2, 10);
-  }
-
-  ctx.font='12px "Segoe UI"'; ctx.textAlign='left'; ctx.textBaseline='top';
-  ctx.fillStyle='rgba(255,255,255,0.35)'; ctx.shadowBlur=0;
-  const t=songTitle.length>28?songTitle.slice(0,26)+'…':songTitle;
-  ctx.fillText(t, 20, 10);
-
-  const pct=clamp(nowMs/songDuration,0,1);
-  const barX=20, barY=28, barW=180, barH=3;
-  ctx.fillStyle='rgba(255,255,255,0.1)'; ctx.fillRect(barX,barY,barW,barH);
-  const pg=ctx.createLinearGradient(barX,0,barX+barW,0);
-  pg.addColorStop(0,'#5599ff'); pg.addColorStop(1,'#cc55ff');
-  ctx.fillStyle=pg; ctx.fillRect(barX,barY,barW*pct,barH);
-
-  const modeName = mode==='straight'?'Straight Keys':mode==='shifty'?'Shifty Keys':mode==='spacey'?'Spacey Keys':'Wordy Keys';
-  ctx.font='10px "Segoe UI"'; ctx.fillStyle='rgba(255,255,255,0.22)';
-  ctx.fillText(`${bpm} BPM  ·  ${modeName}  ·  ${DIFFICULTY_DEFS[difficulty].label}`, 20, 38);
 
   ctx.restore();
 }
 
 function drawParticleLayer() {
   for (const p of particles) {
-    const r = Math.max(0, p.sz * p.life);
-    if (r === 0) continue;
+    const sz = Math.max(0, (p.sz || 3) * p.life);
+    if (sz === 0) continue;
     ctx.save();
-    ctx.globalAlpha=p.life; ctx.fillStyle=p.color; ctx.shadowColor=p.color; ctx.shadowBlur=8;
-    ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI*2); ctx.fill();
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.color;
+    ctx.shadowColor = p.color;
+    ctx.shadowBlur = 6;
+    ctx.fillRect(p.x - sz/2, p.y - sz/2, sz, sz);
     ctx.restore();
   }
 }
@@ -2544,25 +2443,32 @@ function drawParticleLayer() {
 function drawFxLayer() {
   for (const h of hitFx) {
     ctx.save();
-    ctx.globalAlpha=h.opacity; ctx.font='bold 19px "Segoe UI"';
-    ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillStyle=h.color; ctx.shadowColor=h.color; ctx.shadowBlur=13;
+    ctx.globalAlpha = h.opacity;
+    ctx.font = 'bold 22px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = h.color;
+    ctx.shadowColor = h.color;
+    ctx.shadowBlur = 10;
     ctx.fillText(h.text, h.x, h.y);
     ctx.restore();
   }
 }
 
 function drawCountdown() {
-  ctx.fillStyle='rgba(7,7,15,0.55)'; ctx.fillRect(0,0,CW,CH);
-  const text  = countdownVal===0?'GO!':String(countdownVal);
-  const cols  = {3:'#ffaa44',2:'#ffdd55',1:'#55ff99',0:'#55ff99'};
-  const sizes = {3:110,2:110,1:110,0:90};
-  const col   = cols[countdownVal]||'#fff';
+  const text = countdownVal === 0 ? 'GO!' : String(countdownVal);
+  const isGo = countdownVal === 0;
+  const fill = isGo ? '#55ff99' : '#ffdd55';
+  const glow = isGo ? '#55ff99' : '#ffaa44';
   ctx.save();
-  ctx.font=`bold ${sizes[countdownVal]||110}px "Segoe UI",sans-serif`;
-  ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillStyle=col; ctx.shadowColor=col; ctx.shadowBlur=60;
-  ctx.fillText(text, CW/2, CH/2);
+  ctx.translate(CW/2, CH/2 - 20);
+  ctx.font = 'bold 140px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = fill;
+  ctx.shadowColor = glow;
+  ctx.shadowBlur = 40;
+  ctx.fillText(text, 0, 0);
   ctx.restore();
 }
 
@@ -2590,6 +2496,11 @@ async function beginGame() {
   }
 
   audioEl.currentTime = 0;
+  const rate = (bpm > 0 && targetBpm > 0) ? targetBpm / bpm : 1;
+  audioEl.preservesPitch = true;
+  audioEl.mozPreservesPitch = true;
+  audioEl.webkitPreservesPitch = true;
+  audioEl.playbackRate = rate;
   audioEl.play().catch(()=>{});
   gameState = 'PLAYING';
   audioEl.onended = () => setTimeout(showResults, 600);
@@ -2732,22 +2643,22 @@ function applyDifficulty(key) {
 }
 
 function updateMenuFocus() {
-  // Form-group sections (0–3, 6)
-  const fgMap = { 0:'fgMusic', 1:'fgBpm', 2:'fgOffbeat', 3:'fgOffset', 6:'fgNumPct' };
+  // Form-group sections (0–4, 7)
+  const fgMap = { 0:'fgMusic', 1:'fgBpm', 2:'fgTargetBpm', 3:'fgOffbeat', 4:'fgOffset', 7:'fgNumPct' };
   for (const [sec, id] of Object.entries(fgMap))
     document.getElementById(id).classList.toggle('kb-focus', menuSection === +sec);
-  document.getElementById('fgDifficulty').classList.toggle('kb-focus', menuSection === 5);
+  document.getElementById('fgDifficulty').classList.toggle('kb-focus', menuSection === 6);
 
-  // Mode cards (section 4)
+  // Mode cards (section 5)
   document.querySelectorAll('.mode-card').forEach((c, i) =>
-    c.classList.toggle('kb-focus', menuSection === 4 && i === menuModeIdx));
+    c.classList.toggle('kb-focus', menuSection === 5 && i === menuModeIdx));
 
-  // Difficulty (section 5)
+  // Difficulty (section 6)
   document.querySelectorAll('.diff-btn').forEach(b =>
-    b.classList.toggle('kb-focus', menuSection === 5 && b.dataset.diff === difficulty));
+    b.classList.toggle('kb-focus', menuSection === 6 && b.dataset.diff === difficulty));
 
-  // Start (section 7)
-  document.getElementById('startBtn').classList.toggle('kb-focus', menuSection === 7);
+  // Start (section 8)
+  document.getElementById('startBtn').classList.toggle('kb-focus', menuSection === 8);
 }
 
 function updatePauseFocus() {
@@ -2767,10 +2678,10 @@ function updateResultsFocus() {
 // Build difficulty grid
 (function() {
   const DESCS = {
-    easy:   'Whole notes with long rests',
-    medium: 'Whole & half-note chains',
-    hard:   'Quarter/half-note riffs',
-    expert: '16th & 8th-note bursts',
+    easy:   'Whole note beat',
+    medium: 'Half note beat',
+    hard:   'Quarter note beat',
+    expert: 'Eighth note beat',
   };
   const grid = document.getElementById('diffGrid');
   DIFF_KEYS.forEach(key => {
@@ -2780,14 +2691,14 @@ function updateResultsFocus() {
     btn.dataset.diff = key;
     btn.style.setProperty('--diff-color', def.color);
     btn.innerHTML = `<div class="diff-name">${def.label}</div><div class="diff-desc">${DESCS[key]}</div>`;
-    btn.addEventListener('click', () => { menuSection = 5; applyDifficulty(key); });
+    btn.addEventListener('click', () => { menuSection = 6; applyDifficulty(key); });
     grid.appendChild(btn);
   });
 })();
 
 // Mode cards
 document.querySelectorAll('.mode-card').forEach((card, idx) => {
-  card.addEventListener('click', () => { menuSection = 4; applyMenuMode(idx); });
+  card.addEventListener('click', () => { menuSection = 5; applyMenuMode(idx); });
 });
 
 // File picker
@@ -2805,8 +2716,42 @@ document.getElementById('musicFile').addEventListener('change', e => {
   });
 });
 
-// BPM
-document.getElementById('bpmInput').addEventListener('input', e => { bpm = parseInt(e.target.value)||120; });
+// BPM / Target BPM
+function updateRateLabel() {
+  const el = document.getElementById('rateLabel');
+  if (!el) return;
+  const r = (bpm > 0) ? targetBpm / bpm : 1;
+  el.textContent = r.toFixed(2) + '×';
+  el.style.color = Math.abs(r - 1) < 0.005 ? 'rgba(255,255,255,0.55)' : '#ffdd55';
+}
+function setBpm(v) {
+  bpm = Math.max(40, Math.min(300, v|0)) || 120;
+  document.getElementById('bpmInput').value = bpm;
+  if (!targetBpmTouched) {
+    targetBpm = bpm;
+    document.getElementById('targetBpmInput').value = targetBpm;
+  }
+  updateRateLabel();
+}
+function setTargetBpm(v) {
+  targetBpm = Math.max(40, Math.min(300, v|0)) || 120;
+  targetBpmTouched = true;
+  document.getElementById('targetBpmInput').value = targetBpm;
+  updateRateLabel();
+}
+document.getElementById('bpmInput').addEventListener('input', e => {
+  bpm = parseInt(e.target.value) || 120;
+  if (!targetBpmTouched) {
+    targetBpm = bpm;
+    document.getElementById('targetBpmInput').value = targetBpm;
+  }
+  updateRateLabel();
+});
+document.getElementById('targetBpmInput').addEventListener('input', e => {
+  targetBpm = parseInt(e.target.value) || 120;
+  targetBpmTouched = true;
+  updateRateLabel();
+});
 
 // Offbeat
 document.getElementById('offbeatToggle').addEventListener('change', e => { offbeat = e.target.checked; });
@@ -2990,6 +2935,11 @@ document.getElementById('tapBpmBtn').addEventListener('click', () => {
     for (let i=1;i<tapTimes.length;i++) sum+=tapTimes[i]-tapTimes[i-1];
     const d=Math.round(60000/(sum/(tapTimes.length-1)));
     document.getElementById('bpmInput').value=d; bpm=d;
+    if (!targetBpmTouched) {
+      targetBpm = bpm;
+      document.getElementById('targetBpmInput').value = targetBpm;
+    }
+    updateRateLabel();
   }
   const btn=document.getElementById('tapBpmBtn');
   btn.style.background='rgba(85,153,255,0.32)';
@@ -3000,6 +2950,7 @@ document.getElementById('tapBpmBtn').addEventListener('click', () => {
 document.getElementById('startBtn').addEventListener('click', () => {
   if (!audioEl||document.getElementById('startBtn').disabled) return;
   bpm=parseInt(document.getElementById('bpmInput').value)||120;
+  targetBpm=parseInt(document.getElementById('targetBpmInput').value)||bpm;
   beginGame();
 });
 

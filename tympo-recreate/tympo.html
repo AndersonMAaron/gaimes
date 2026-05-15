@@ -1,0 +1,1643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Tympo</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  background: #03030c;
+  color: #ddd;
+  font-family: 'Consolas', 'Courier New', monospace;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  user-select: none;
+}
+#canvas { display: block; margin: 0 auto; image-rendering: pixelated; }
+#setup {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(ellipse at center, #0a0a20, #03030c 70%);
+  z-index: 10;
+  overflow-y: auto;
+  padding: 20px;
+}
+.setup-panel {
+  background: rgba(15, 15, 35, 0.85);
+  border: 1px solid #2a2a4e;
+  border-radius: 12px;
+  padding: 28px 32px;
+  width: 740px;
+  max-width: 100%;
+  box-shadow: 0 0 40px rgba(80, 100, 200, 0.25);
+}
+.setup-title {
+  font-size: 48px;
+  font-weight: bold;
+  text-align: center;
+  margin-bottom: 4px;
+  color: #88ccff;
+  letter-spacing: 8px;
+  text-shadow: 0 0 24px rgba(136, 204, 255, 0.7);
+}
+.setup-subtitle {
+  text-align: center;
+  font-size: 12px;
+  color: #6a7a99;
+  margin-bottom: 22px;
+  letter-spacing: 4px;
+}
+.section {
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  transition: all 0.15s;
+}
+.section.focused {
+  border-color: #5575aa;
+  background: rgba(80, 120, 200, 0.10);
+  box-shadow: 0 0 14px rgba(85, 117, 170, 0.35);
+}
+.section-label {
+  font-size: 11px;
+  color: #99aacc;
+  letter-spacing: 1.5px;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+.row { display: flex; gap: 10px; align-items: center; }
+.field input[type=number], .field input[type=file] {
+  background: #181830;
+  color: #eef;
+  border: 1px solid #3a3a5e;
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-family: inherit;
+  font-size: 14px;
+}
+.field input[type=number] { width: 110px; }
+.field input[type=file] { width: 100%; }
+.field input[type=checkbox] { width: 18px; height: 18px; accent-color: #5599ff; }
+.field input[type=range] { flex: 1; accent-color: #88ccff; }
+.cards { display: flex; gap: 10px; }
+.card {
+  flex: 1;
+  background: rgba(30,30,55,0.6);
+  border: 2px solid #2a2a4e;
+  padding: 14px;
+  border-radius: 8px;
+  text-align: center;
+  cursor: pointer;
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  font-weight: bold;
+  transition: all 0.15s;
+}
+.card[data-mode=shifty] { box-shadow: inset 0 0 22px rgba(255,221,85,0.09); }
+.card[data-mode=spacey] { box-shadow: inset 0 0 22px rgba(204,136,255,0.09); }
+.card.selected {
+  border-color: #88ccff;
+  background: rgba(80,120,200,0.18);
+  box-shadow: 0 0 16px rgba(136, 204, 255, 0.35);
+}
+.card[data-mode=shifty].selected {
+  border-color: #ffdd55;
+  box-shadow: 0 0 18px rgba(255,221,85,0.4), inset 0 0 30px rgba(255,221,85,0.20);
+}
+.card[data-mode=spacey].selected {
+  border-color: #cc88ff;
+  box-shadow: 0 0 18px rgba(204,136,255,0.4), inset 0 0 30px rgba(204,136,255,0.20);
+}
+.diff-row { display: flex; gap: 8px; }
+.diff-btn {
+  flex: 1;
+  background: rgba(30,30,55,0.6);
+  border: 2px solid #2a2a4e;
+  padding: 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  font-weight: bold;
+  color: #ddd;
+  text-align: center;
+}
+.diff-btn[data-diff=easy]   { box-shadow: inset 0 0 14px rgba(85,255,153,0.10); }
+.diff-btn[data-diff=medium] { box-shadow: inset 0 0 14px rgba(85,153,255,0.10); }
+.diff-btn[data-diff=hard]   { box-shadow: inset 0 0 14px rgba(255,170,68,0.10); }
+.diff-btn[data-diff=expert] { box-shadow: inset 0 0 14px rgba(255,85,119,0.10); }
+.diff-btn[data-diff=easy].selected   { border-color: #55ff99; box-shadow: 0 0 14px rgba(85,255,153,0.4), inset 0 0 20px rgba(85,255,153,0.18); }
+.diff-btn[data-diff=medium].selected { border-color: #5599ff; box-shadow: 0 0 14px rgba(85,153,255,0.4), inset 0 0 20px rgba(85,153,255,0.18); }
+.diff-btn[data-diff=hard].selected   { border-color: #ffaa44; box-shadow: 0 0 14px rgba(255,170,68,0.4), inset 0 0 20px rgba(255,170,68,0.18); }
+.diff-btn[data-diff=expert].selected { border-color: #ff5577; box-shadow: 0 0 14px rgba(255,85,119,0.4), inset 0 0 20px rgba(255,85,119,0.18); }
+#startBtn {
+  display: block;
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(180deg, #4477cc, #224488);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 18px;
+  letter-spacing: 6px;
+  cursor: pointer;
+  margin-top: 10px;
+  font-family: inherit;
+  font-weight: bold;
+}
+#startBtn:disabled { background: #333344; color: #555; cursor: not-allowed; box-shadow: none; }
+#startBtn:not(:disabled):hover { background: linear-gradient(180deg, #5588dd, #3355aa); }
+.rate-label {
+  font-size: 13px;
+  color: #ffdd55;
+  margin-left: 8px;
+  font-weight: bold;
+  letter-spacing: 1px;
+}
+.rate-label.dim { color: #555; font-weight: normal; }
+.btn {
+  background: #222244;
+  color: #cce;
+  border: 1px solid #4a4a7e;
+  border-radius: 5px;
+  padding: 6px 14px;
+  font-family: inherit;
+  font-size: 12px;
+  letter-spacing: 1px;
+  cursor: pointer;
+}
+.btn:hover { background: #2a2a55; }
+#calibrationModal, #pauseOverlay, #resultsOverlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.85);
+  z-index: 20;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+.modal-content {
+  background: #131322;
+  border: 1px solid #4a4a7e;
+  border-radius: 10px;
+  padding: 30px;
+  width: 480px;
+  text-align: center;
+  color: #ddd;
+}
+.modal-title {
+  font-size: 22px;
+  color: #88ccff;
+  letter-spacing: 4px;
+  margin-bottom: 14px;
+  font-weight: bold;
+}
+.modal-body { font-size: 13px; color: #aabbcc; margin-bottom: 18px; line-height: 1.6; }
+.tap-counter { font-size: 48px; color: #ffdd55; margin: 16px 0; font-weight: bold; }
+.results-grade {
+  font-size: 200px;
+  font-weight: bold;
+  letter-spacing: -8px;
+  margin: -10px 0 -20px 0;
+  line-height: 1;
+}
+@keyframes gradeIn {
+  0%   { transform: scale(0) rotate(-25deg); opacity: 0; }
+  60%  { transform: scale(1.15) rotate(5deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0); opacity: 1; }
+}
+.results-grade.animate { animation: gradeIn 0.7s cubic-bezier(.2,1.4,.4,1) forwards; }
+.results-row { display: flex; gap: 24px; margin: 18px 0; justify-content: center; }
+.results-row .label { color: #88aabb; font-size: 11px; letter-spacing: 1.5px; }
+.results-row .val { font-size: 22px; color: #fff; font-weight: bold; }
+.hs-banner {
+  display: inline-block;
+  background: linear-gradient(90deg, #ffdd55, #ff8855, #ffdd55);
+  background-size: 200% 100%;
+  color: #221100;
+  padding: 6px 18px;
+  border-radius: 4px;
+  font-weight: bold;
+  letter-spacing: 3px;
+  font-size: 13px;
+  animation: shimmer 2s linear infinite;
+}
+@keyframes shimmer { 0% { background-position: 0 0;} 100% { background-position: 200% 0;} }
+.counts-row { display: flex; gap: 10px; font-size: 13px; margin: 12px 0 18px 0; justify-content: center; }
+.counts-row .count { padding: 6px 12px; border-radius: 4px; font-weight: bold; }
+.count.perfect { background: rgba(85, 255, 153, 0.15); color: #55ff99; }
+.count.good    { background: rgba(85, 153, 255, 0.15); color: #5599ff; }
+.count.ok      { background: rgba(255, 170, 68, 0.15); color: #ffaa44; }
+.count.miss    { background: rgba(255, 85, 119, 0.15); color: #ff5577; }
+.results-buttons { display: flex; gap: 12px; justify-content: center; margin-top: 10px; }
+.results-buttons .btn { padding: 10px 22px; font-size: 12px; letter-spacing: 2px; }
+.help {
+  position: fixed;
+  left: 16px; bottom: 12px;
+  font-size: 11px;
+  color: #556;
+  letter-spacing: 1px;
+  z-index: 5;
+}
+</style>
+</head>
+<body>
+<canvas id="canvas" width="900" height="800"></canvas>
+<audio id="audio"></audio>
+<div class="help">ESC: pause &nbsp;|&nbsp; ← ↑ → ↓ : powerups</div>
+
+<div id="setup">
+  <div class="setup-panel">
+    <div class="setup-title">TYMPO</div>
+    <div class="setup-subtitle">A QWERTY RHYTHM GAME</div>
+
+    <div class="section focused" data-section="audio">
+      <div class="section-label">Audio File</div>
+      <div class="field"><input type="file" id="audioFile" accept="audio/*"></div>
+    </div>
+
+    <div class="row">
+      <div class="section" data-section="bpm" style="flex:1;">
+        <div class="section-label">Song BPM</div>
+        <div class="field"><input type="number" id="bpmInput" value="120" min="40" max="300"></div>
+      </div>
+      <div class="section" data-section="targetBpm" style="flex:1;">
+        <div class="section-label">Target BPM</div>
+        <div class="field row">
+          <input type="number" id="targetBpmInput" value="120" min="40" max="300">
+          <span id="rateLabel" class="rate-label dim">× 1.00</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" data-section="offbeat">
+      <div class="section-label">Offbeat</div>
+      <label class="field row" style="cursor:pointer;">
+        <input type="checkbox" id="offbeatInput">
+        <span style="color:#99aabb;font-size:12px;">Shift the note grid by half a beat</span>
+      </label>
+    </div>
+
+    <div class="section" data-section="calibrate">
+      <div class="section-label">Audio Offset</div>
+      <div class="row">
+        <button class="btn" id="calibrateBtn">CALIBRATE</button>
+        <input type="range" id="offsetSlider" min="-150" max="150" value="0">
+        <span id="offsetReadout" style="min-width:60px;color:#ffdd55;font-weight:bold;">0 ms</span>
+      </div>
+    </div>
+
+    <div class="section" data-section="mode">
+      <div class="section-label">Mode</div>
+      <div class="cards">
+        <div class="card selected" data-mode="straight">STRAIGHT KEYS<br><span style="font-size:9px;color:#99aabb;font-weight:normal;letter-spacing:1px;">letters &amp; numbers</span></div>
+        <div class="card" data-mode="shifty">SHIFTY KEYS<br><span style="font-size:9px;color:#99aabb;font-weight:normal;letter-spacing:1px;">some require shift</span></div>
+        <div class="card" data-mode="spacey">SPACEY KEYS<br><span style="font-size:9px;color:#99aabb;font-weight:normal;letter-spacing:1px;">space between notes</span></div>
+      </div>
+    </div>
+
+    <div class="section" data-section="difficulty">
+      <div class="section-label">Difficulty</div>
+      <div class="diff-row">
+        <div class="diff-btn" data-diff="easy">EASY</div>
+        <div class="diff-btn selected" data-diff="medium">MEDIUM</div>
+        <div class="diff-btn" data-diff="hard">HARD</div>
+        <div class="diff-btn" data-diff="expert">EXPERT</div>
+      </div>
+    </div>
+
+    <div class="section" data-section="numkeys">
+      <div class="section-label">Number Keys %</div>
+      <div class="field"><input type="number" id="numKeysInput" value="5" min="0" max="100"></div>
+    </div>
+
+    <div class="section" data-section="start">
+      <button id="startBtn" disabled>START</button>
+    </div>
+  </div>
+</div>
+
+<div id="calibrationModal">
+  <div class="modal-content">
+    <div class="modal-title">CALIBRATION</div>
+    <div class="modal-body">Press <strong>START CLICKS</strong>, then tap <strong>SPACE</strong> in time<br>with the metronome. 10 taps will compute your offset.</div>
+    <div class="tap-counter"><span id="tapCount">0</span> / 10</div>
+    <div id="calibResult" style="color:#55ff99;font-size:14px;margin:10px 0;height:18px;font-weight:bold;"></div>
+    <div class="row" style="justify-content:center;">
+      <button class="btn" id="calibStart">START CLICKS</button>
+      <button class="btn" id="calibCancel">CANCEL</button>
+    </div>
+  </div>
+</div>
+
+<div id="pauseOverlay">
+  <div class="modal-content">
+    <div class="modal-title">PAUSED</div>
+    <div class="modal-body">Press ESC or click RESUME to continue</div>
+    <div class="row" style="justify-content:center;">
+      <button class="btn" id="resumeBtn">RESUME</button>
+      <button class="btn" id="quitBtn">QUIT TO SETUP</button>
+    </div>
+  </div>
+</div>
+
+<div id="resultsOverlay">
+  <div class="modal-content" style="width:560px;">
+    <div id="hsBannerWrap" style="margin-bottom:10px;min-height:24px;"></div>
+    <div class="results-grade" id="resultGrade">A</div>
+    <div class="results-row">
+      <div><div class="label">SCORE</div><div class="val" id="resultScore">0</div></div>
+      <div><div class="label">ACCURACY</div><div class="val" id="resultAcc">0%</div></div>
+      <div><div class="label">MAX COMBO</div><div class="val" id="resultMaxCombo">0</div></div>
+    </div>
+    <div class="counts-row">
+      <div class="count perfect">Perfect <span id="cntPerfect">0</span></div>
+      <div class="count good">Good <span id="cntGood">0</span></div>
+      <div class="count ok">OK <span id="cntOk">0</span></div>
+      <div class="count miss">Miss <span id="cntMiss">0</span></div>
+    </div>
+    <div class="results-buttons">
+      <button class="btn" id="playAgainBtn">PLAY AGAIN</button>
+      <button class="btn" id="backSetupBtn">BACK TO SETUP</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============ Constants ============
+const CW = 900, CH = 800;
+const FL_TOP = 70, FL_HIT_Y = 560, FL_TOP_W = 120, FL_BOT_W = 420;
+const TRAVEL_MS = 2400;
+const DIFF_COLOR = { easy:'#55ff99', medium:'#5599ff', hard:'#ffaa44', expert:'#ff5577' };
+const MODE_COLOR = { straight:'#55ff99', shifty:'#ffdd55', spacey:'#cc88ff' };
+
+const POWERUPS = {
+  ArrowUp:    { type:'double',    label:'×2',          color:'#ffdd55', icon:'↑', duration:10000, short:'×2' },
+  ArrowRight: { type:'allP',      label:'P-P-P-P',     color:'#55ffcc', icon:'→', duration:8000,  short:'PPPP' },
+  ArrowDown:  { type:'hacker',    label:'HACKER MODE', color:'#55ff99', icon:'↓', duration:5000,  short:'HACK' },
+  ArrowLeft:  { type:'autopilot', label:'AUTOPILOT',   color:'#ff88cc', icon:'←', duration:10000, short:'AUTO' },
+};
+
+const KEY_ROWS = [
+  { keys: '1234567890', stagger: 0 },
+  { keys: 'qwertyuiop', stagger: 0.5 },
+  { keys: 'asdfghjkl',  stagger: 0.75 },
+  { keys: 'zxcvbnm',    stagger: 1.25 },
+];
+const KEY_POS = {};
+for (const row of KEY_ROWS) {
+  for (let i = 0; i < row.keys.length; i++) {
+    const x = row.stagger + i;
+    KEY_POS[row.keys[i]] = ((x - 0.5) / 9) * (0.952 - 0.095) + 0.095;
+  }
+}
+
+const SHIFTY_FRAC = { easy: 0.15, medium: 0.25, hard: 0.35, expert: 0.5 };
+const SHIFT_DIGIT_MAP = {'!':'1','@':'2','#':'3','$':'4','%':'5','^':'6','&':'7','*':'8','(':'9',')':'0'};
+
+// ============ State ============
+let state = 'SETUP'; // SETUP | COUNTDOWN | PLAYING | PAUSED | RESULTS
+let mode = 'straight';
+let difficulty = 'medium';
+let bpm = 120, targetBpm = 120;
+let offbeat = false;
+let audioOffset = 0;
+let numberKeysPct = 5;
+let notes = [];
+let score = 0, combo = 0, maxCombo = 0;
+let perfectCount = 0, goodCount = 0, okCount = 0, missCount = 0;
+let beatMs = 500, stepMs = 1000;
+let streamAnchorMs = 0;
+let powerupCharge = 0;
+let activePowerup = null;
+let particles = [];
+let hitFx = [];
+let banners = [];
+let keyFlash = {};
+let lastHitFlash = -9999;
+let countdownEnd = 0;
+let songTitle = '';
+let songDuration = 0;
+let canvasScale = 1;
+let resultsShown = false;
+let targetBpmManuallyEdited = false;
+
+// ============ DOM ============
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const audioEl = document.getElementById('audio');
+const setupEl = document.getElementById('setup');
+const pauseOverlay = document.getElementById('pauseOverlay');
+const resultsOverlay = document.getElementById('resultsOverlay');
+const calibModal = document.getElementById('calibrationModal');
+
+const audioFileEl = document.getElementById('audioFile');
+const bpmInput = document.getElementById('bpmInput');
+const targetBpmInput = document.getElementById('targetBpmInput');
+const rateLabel = document.getElementById('rateLabel');
+const offbeatInput = document.getElementById('offbeatInput');
+const numKeysInput = document.getElementById('numKeysInput');
+const offsetSlider = document.getElementById('offsetSlider');
+const offsetReadout = document.getElementById('offsetReadout');
+const startBtn = document.getElementById('startBtn');
+
+// ============ Audio Analyser ============
+let audioCtx = null;
+let analyser = null;
+let sourceNode = null;
+let freqData = null;
+const NUM_BARS = 26;
+const wmpPeaks = new Float32Array(NUM_BARS);
+let analyserSrcRef = null;
+
+function ensureAnalyser() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  if (!sourceNode || analyserSrcRef !== audioEl) {
+    try {
+      sourceNode = audioCtx.createMediaElementSource(audioEl);
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 512;
+      analyser.smoothingTimeConstant = 0.75;
+      sourceNode.connect(analyser);
+      analyser.connect(audioCtx.destination);
+      freqData = new Uint8Array(analyser.frequencyBinCount);
+      analyserSrcRef = audioEl;
+    } catch (e) {}
+  }
+}
+
+// ============ Utilities ============
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+function rrect(x,y,w,h,r){
+  if (typeof ctx.roundRect === 'function') { ctx.beginPath(); ctx.roundRect(x,y,w,h,r); return; }
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+function parseHex(h){h=h.replace('#','');return{r:parseInt(h.substr(0,2),16),g:parseInt(h.substr(2,2),16),b:parseInt(h.substr(4,2),16)};}
+function toHex(r,g,b){const c=v=>clamp(Math.round(v),0,255).toString(16).padStart(2,'0');return'#'+c(r)+c(g)+c(b);}
+function lighten(h,a){const c=parseHex(h);return toHex(c.r+(255-c.r)*a,c.g+(255-c.g)*a,c.b+(255-c.b)*a);}
+function darken(h,a){const c=parseHex(h);return toHex(c.r*(1-a),c.g*(1-a),c.b*(1-a));}
+function rgba(h,a){const c=parseHex(h);return `rgba(${c.r},${c.g},${c.b},${a})`;}
+
+function flatHBounds(y) {
+  const t = (y - FL_TOP) / (FL_HIT_Y - FL_TOP);
+  const w = FL_TOP_W + (FL_BOT_W - FL_TOP_W) * t;
+  return { left: (CW - w) / 2, right: (CW + w) / 2, width: w };
+}
+
+function getStepMs() {
+  const step16 = beatMs / 4;
+  if (difficulty === 'easy')   return step16 * 16;
+  if (difficulty === 'medium') return step16 * 8;
+  if (difficulty === 'hard')   return step16 * 4;
+  return step16 * 2;
+}
+
+function pickChar() {
+  const useNum = Math.random() * 100 < numberKeysPct;
+  if (useNum) return '0123456789'[Math.floor(Math.random() * 10)];
+  return 'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random() * 26)];
+}
+
+function generateNotes() {
+  notes = [];
+  beatMs = 60000 / bpm;
+  stepMs = getStepMs();
+  const rawLeadIn = Math.max(2200, TRAVEL_MS * 1.05);
+  const snappedLeadIn = Math.ceil(rawLeadIn / beatMs) * beatMs;
+  const offbeatShift = offbeat ? beatMs / 2 : 0;
+  streamAnchorMs = snappedLeadIn + offbeatShift;
+  const dur = (songDuration > 0 ? songDuration * 1000 : 600000);
+  const shiftyFrac = SHIFTY_FRAC[difficulty];
+  let t = streamAnchorMs;
+  while (t < dur - 2000) {
+    const ch = pickChar();
+    const needsShift = (mode === 'shifty') && (Math.random() < shiftyFrac);
+    notes.push({ char: ch, hitTime: t, needsShift, hit: false, missed: false });
+    if (mode === 'spacey') {
+      notes.push({ char: ' ', hitTime: t + stepMs / 2, needsShift: false, hit: false, missed: false, isSpace: true });
+    }
+    t += stepMs;
+  }
+  notes.sort((a, b) => a.hitTime - b.hitTime);
+}
+
+// ============ Resize / HiDPI ============
+function resizeCanvas() {
+  const aw = window.innerWidth, ah = window.innerHeight;
+  const scale = Math.min(aw / CW, ah / CH);
+  canvasScale = scale;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = CW * scale * dpr;
+  canvas.height = CH * scale * dpr;
+  canvas.style.width = (CW * scale) + 'px';
+  canvas.style.height = (CH * scale) + 'px';
+}
+window.addEventListener('resize', resizeCanvas);
+
+// ============ Setup UI ============
+const sections = ['audio','bpm','targetBpm','offbeat','calibrate','mode','difficulty','numkeys','start'];
+let focusedSection = 0;
+
+function updateFocus() {
+  document.querySelectorAll('.section').forEach(el => el.classList.remove('focused'));
+  const s = document.querySelector(`[data-section="${sections[focusedSection]}"]`);
+  if (s) s.classList.add('focused');
+}
+
+function updateRateLabel() {
+  const rate = targetBpm / bpm;
+  rateLabel.textContent = '× ' + rate.toFixed(2);
+  rateLabel.classList.toggle('dim', Math.abs(rate - 1) < 0.005);
+}
+
+audioFileEl.addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  songTitle = file.name.replace(/\.[^/.]+$/, '');
+  const url = URL.createObjectURL(file);
+  audioEl.src = url;
+  audioEl.load();
+  audioEl.addEventListener('loadedmetadata', () => {
+    songDuration = audioEl.duration;
+    startBtn.disabled = false;
+  }, { once: true });
+  audioFileEl.blur();
+});
+
+bpmInput.addEventListener('input', () => {
+  bpm = clamp(parseInt(bpmInput.value) || 120, 40, 300);
+  if (!targetBpmManuallyEdited) { targetBpm = bpm; targetBpmInput.value = bpm; }
+  updateRateLabel();
+});
+targetBpmInput.addEventListener('input', () => {
+  targetBpm = clamp(parseInt(targetBpmInput.value) || 120, 40, 300);
+  targetBpmManuallyEdited = true;
+  updateRateLabel();
+});
+offbeatInput.addEventListener('change', () => { offbeat = offbeatInput.checked; });
+numKeysInput.addEventListener('input', () => {
+  numberKeysPct = clamp(parseInt(numKeysInput.value) || 0, 0, 100);
+});
+offsetSlider.addEventListener('input', () => {
+  audioOffset = parseInt(offsetSlider.value);
+  offsetReadout.textContent = audioOffset + ' ms';
+});
+
+document.querySelectorAll('.card[data-mode]').forEach(card => {
+  card.addEventListener('click', () => {
+    mode = card.dataset.mode;
+    document.querySelectorAll('.card[data-mode]').forEach(c => c.classList.toggle('selected', c === card));
+  });
+});
+document.querySelectorAll('.diff-btn[data-diff]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    difficulty = btn.dataset.diff;
+    document.querySelectorAll('.diff-btn[data-diff]').forEach(b => b.classList.toggle('selected', b === btn));
+  });
+});
+startBtn.addEventListener('click', startGame);
+
+function setupKeyHandler(e) {
+  if (state !== 'SETUP') return;
+  if (calibModal.style.display === 'flex') return;
+  const inInput = document.activeElement && (document.activeElement.tagName === 'INPUT');
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    if (inInput) document.activeElement.blur();
+    focusedSection = (focusedSection + (e.key === 'ArrowDown' ? 1 : -1) + sections.length) % sections.length;
+    updateFocus();
+    e.preventDefault();
+    return;
+  }
+  if (inInput) return;
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    const dir = e.key === 'ArrowRight' ? 1 : -1;
+    const sec = sections[focusedSection];
+    if (sec === 'bpm') {
+      bpm = clamp(bpm + dir, 40, 300); bpmInput.value = bpm;
+      if (!targetBpmManuallyEdited) { targetBpm = bpm; targetBpmInput.value = bpm; }
+      updateRateLabel();
+    } else if (sec === 'targetBpm') {
+      targetBpm = clamp(targetBpm + dir, 40, 300); targetBpmInput.value = targetBpm;
+      targetBpmManuallyEdited = true; updateRateLabel();
+    } else if (sec === 'offbeat') {
+      offbeat = !offbeat; offbeatInput.checked = offbeat;
+    } else if (sec === 'calibrate') {
+      audioOffset = clamp(audioOffset + dir, -150, 150);
+      offsetSlider.value = audioOffset;
+      offsetReadout.textContent = audioOffset + ' ms';
+    } else if (sec === 'mode') {
+      const modes = ['straight','shifty','spacey'];
+      let idx = modes.indexOf(mode);
+      idx = (idx + dir + modes.length) % modes.length;
+      mode = modes[idx];
+      document.querySelectorAll('.card[data-mode]').forEach(c => c.classList.toggle('selected', c.dataset.mode === mode));
+    } else if (sec === 'difficulty') {
+      const diffs = ['easy','medium','hard','expert'];
+      let idx = diffs.indexOf(difficulty);
+      idx = (idx + dir + diffs.length) % diffs.length;
+      difficulty = diffs[idx];
+      document.querySelectorAll('.diff-btn[data-diff]').forEach(b => b.classList.toggle('selected', b.dataset.diff === difficulty));
+    } else if (sec === 'numkeys') {
+      numberKeysPct = clamp(numberKeysPct + dir, 0, 100);
+      numKeysInput.value = numberKeysPct;
+    }
+    e.preventDefault();
+    return;
+  }
+  if (e.key === 'Enter' || e.code === 'Space') {
+    const sec = sections[focusedSection];
+    if (sec === 'audio') { audioFileEl.click(); }
+    else if (sec === 'offbeat') { offbeat = !offbeat; offbeatInput.checked = offbeat; }
+    else if (sec === 'calibrate') { openCalibration(); }
+    else if (sec === 'start' && !startBtn.disabled) { startGame(); }
+    e.preventDefault();
+  }
+}
+window.addEventListener('keydown', setupKeyHandler);
+updateFocus();
+
+// ============ Calibration ============
+const calibStartBtn = document.getElementById('calibStart');
+const calibCancelBtn = document.getElementById('calibCancel');
+const tapCountEl = document.getElementById('tapCount');
+const calibResultEl = document.getElementById('calibResult');
+let calibRunning = false;
+let calibCtx = null;
+let calibStartTime = 0;
+let calibTaps = [];
+const CALIB_BPM = 80;
+const CALIB_INTERVAL = 60000 / CALIB_BPM;
+let calibSchedTimer = null;
+
+document.getElementById('calibrateBtn').addEventListener('click', openCalibration);
+
+function openCalibration() {
+  calibModal.style.display = 'flex';
+  tapCountEl.textContent = '0';
+  calibResultEl.textContent = '';
+  calibTaps = [];
+  calibRunning = false;
+}
+
+function closeCalibration() {
+  calibModal.style.display = 'none';
+  stopCalibClicks();
+}
+
+calibCancelBtn.addEventListener('click', closeCalibration);
+
+function emitClick() {
+  if (!calibRunning || !calibCtx) return;
+  const osc = calibCtx.createOscillator();
+  const gain = calibCtx.createGain();
+  osc.frequency.value = 1400;
+  osc.connect(gain);
+  gain.connect(calibCtx.destination);
+  gain.gain.setValueAtTime(0.3, calibCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, calibCtx.currentTime + 0.05);
+  osc.start();
+  osc.stop(calibCtx.currentTime + 0.05);
+}
+
+function startCalibClicks() {
+  if (!calibCtx) calibCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (calibCtx.state === 'suspended') calibCtx.resume();
+  calibStartTime = performance.now();
+  calibTaps = [];
+  calibRunning = true;
+  tapCountEl.textContent = '0';
+  calibResultEl.textContent = '';
+  emitClick();
+  calibSchedTimer = setInterval(emitClick, CALIB_INTERVAL);
+}
+
+function stopCalibClicks() {
+  calibRunning = false;
+  if (calibSchedTimer) { clearInterval(calibSchedTimer); calibSchedTimer = null; }
+}
+
+calibStartBtn.addEventListener('click', startCalibClicks);
+
+window.addEventListener('keydown', e => {
+  if (calibRunning && e.code === 'Space') {
+    e.preventDefault();
+    const tapTime = performance.now() - calibStartTime;
+    const beatIdx = Math.round(tapTime / CALIB_INTERVAL);
+    const nearestBeat = beatIdx * CALIB_INTERVAL;
+    const offset = tapTime - nearestBeat;
+    calibTaps.push(offset);
+    tapCountEl.textContent = calibTaps.length;
+    if (calibTaps.length >= 10) {
+      stopCalibClicks();
+      const sorted = [...calibTaps].sort((a,b) => a-b);
+      const median = sorted[Math.floor(sorted.length / 2)];
+      audioOffset = clamp(Math.round(median), -150, 150);
+      offsetSlider.value = audioOffset;
+      offsetReadout.textContent = audioOffset + ' ms';
+      calibResultEl.textContent = 'Offset set to ' + audioOffset + ' ms';
+      setTimeout(closeCalibration, 1400);
+    }
+  }
+});
+
+// ============ Start game ============
+function startGame() {
+  if (!audioEl.src) return;
+  bpm = clamp(parseInt(bpmInput.value) || 120, 40, 300);
+  targetBpm = clamp(parseInt(targetBpmInput.value) || 120, 40, 300);
+  setupEl.style.display = 'none';
+  resizeCanvas();
+  resetGameStats();
+  generateNotes();
+  ensureAnalyser();
+  audioEl.preservesPitch = true;
+  audioEl.mozPreservesPitch = true;
+  audioEl.webkitPreservesPitch = true;
+  audioEl.playbackRate = targetBpm / bpm;
+  audioEl.currentTime = 0;
+  state = 'COUNTDOWN';
+  countdownEnd = performance.now() + 3500;
+  resultsShown = false;
+  lastFrameT = 0;
+  requestAnimationFrame(loop);
+}
+
+function resetGameStats() {
+  score = 0; combo = 0; maxCombo = 0;
+  perfectCount = goodCount = okCount = missCount = 0;
+  particles = []; hitFx = []; banners = []; keyFlash = {};
+  powerupCharge = 0; activePowerup = null;
+  wmpPeaks.fill(0);
+  lastHitFlash = -9999;
+}
+
+function nowMs() {
+  if (state === 'COUNTDOWN') {
+    const remaining = countdownEnd - performance.now();
+    return -remaining;
+  }
+  return audioEl.currentTime * 1000 + audioOffset;
+}
+
+// ============ Game tick ============
+function checkMisses(now) {
+  const okWin = clamp(beatMs * 0.36, 55, 240);
+  if (activePowerup && activePowerup.type === 'autopilot') {
+    for (const n of notes) {
+      if (n.hit || n.missed) continue;
+      if (n.hitTime > now + okWin) break;
+      if (now - n.hitTime <= okWin && now >= n.hitTime - okWin) {
+        n.hit = true;
+        scoreNote(n, 'good', now);
+      }
+    }
+  }
+  for (const n of notes) {
+    if (n.hit || n.missed) continue;
+    if (n.hitTime > now + 50) break;
+    if (now - n.hitTime > okWin) {
+      n.missed = true;
+      combo = 0;
+      missCount++;
+      spawnHitFx('Miss', n);
+    }
+  }
+}
+
+function scoreNote(note, grade, now) {
+  let pts = grade === 'perfect' ? 100 : grade === 'good' ? 75 : 50;
+  combo++;
+  if (combo > maxCombo) maxCombo = combo;
+  let mult = 1;
+  if (combo >= 12) mult = 4;
+  else if (combo >= 6) mult = 3;
+  else if (combo >= 3) mult = 2;
+  if (activePowerup && activePowerup.type === 'double') mult *= 2;
+  score += pts * mult;
+  if (grade === 'perfect') perfectCount++;
+  else if (grade === 'good') goodCount++;
+  else okCount++;
+  const label = grade === 'perfect' ? 'Perfect!' : grade === 'good' ? 'Good' : 'OK';
+  spawnHitFx(label, note);
+  lastHitFlash = now;
+  if (grade === 'perfect') spawnParticles(note);
+  if (combo > 0 && combo % 12 === 0 && powerupCharge === 0 && !activePowerup) {
+    powerupCharge = 1;
+    banners.push({ text: '⬆ POWERUP READY', start: now, dur: 1800, color:'#ffdd55' });
+  }
+}
+
+function spawnHitFx(text, note) {
+  let x = CW / 2;
+  if (note && !note.isSpace && KEY_POS[note.char] !== undefined) {
+    const b = flatHBounds(FL_HIT_Y);
+    x = b.left + KEY_POS[note.char] * b.width;
+  }
+  let color = '#fff';
+  if (text.startsWith('Perfect')) color = '#55ff99';
+  else if (text === 'Good') color = '#5599ff';
+  else if (text === 'OK') color = '#ffaa44';
+  else if (text === 'Miss') color = '#ff5577';
+  hitFx.push({ x, y: FL_HIT_Y - 20, text, color, t: 0, life: 700 });
+}
+
+function spawnParticles(note) {
+  let x = CW / 2;
+  if (note && !note.isSpace && KEY_POS[note.char] !== undefined) {
+    const b = flatHBounds(FL_HIT_Y);
+    x = b.left + KEY_POS[note.char] * b.width;
+  }
+  const color = note && note.needsShift ? '#ffaa44' : (note && note.isSpace ? '#cc88ff' : '#55ff99');
+  for (let i = 0; i < 16; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const sp = 1 + Math.random() * 3;
+    particles.push({
+      x, y: FL_HIT_Y,
+      vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1.5,
+      size: 2 + Math.random() * 3,
+      color, life: 600, t: 0
+    });
+  }
+}
+
+function processHitFlat(char, shiftHeld) {
+  const now = nowMs();
+  const okWin = clamp(beatMs * 0.36, 55, 240);
+  if (activePowerup && activePowerup.type === 'hacker') {
+    let best = null, bestD = Infinity;
+    for (const n of notes) {
+      if (n.hit || n.missed) continue;
+      const d = Math.abs(now - n.hitTime);
+      if (d <= okWin && d < bestD) { best = n; bestD = d; }
+    }
+    if (best) { best.hit = true; gradeNote(best, bestD, now); return; }
+    score += 25;
+    lastHitFlash = now;
+    return;
+  }
+  if (activePowerup && activePowerup.type === 'allP') {
+    if (char !== 'p') return;
+    let best = null, bestD = Infinity;
+    for (const n of notes) {
+      if (n.hit || n.missed) continue;
+      const d = Math.abs(now - n.hitTime);
+      if (d <= okWin && d < bestD) { best = n; bestD = d; }
+    }
+    if (best) { best.hit = true; gradeNote(best, bestD, now); }
+    return;
+  }
+  let best = null, bestD = Infinity;
+  for (const n of notes) {
+    if (n.hit || n.missed) continue;
+    if (n.char !== char) continue;
+    if (!!n.needsShift !== !!shiftHeld) continue;
+    const d = Math.abs(now - n.hitTime);
+    if (d <= okWin && d < bestD) { best = n; bestD = d; }
+  }
+  if (best) { best.hit = true; gradeNote(best, bestD, now); }
+}
+
+function gradeNote(note, d, now) {
+  const perfWin = clamp(beatMs * 0.11, 16, 95);
+  const goodWin = clamp(beatMs * 0.22, 32, 160);
+  let grade = 'ok';
+  if (d <= perfWin) grade = 'perfect';
+  else if (d <= goodWin) grade = 'good';
+  scoreNote(note, grade, now);
+}
+
+// ============ Keyboard input ============
+window.addEventListener('keydown', e => {
+  if (state !== 'PLAYING') return;
+  if (e.repeat) return;
+  if (e.key === 'Escape') { pauseGame(); e.preventDefault(); return; }
+  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) {
+    if (powerupCharge === 1 && !activePowerup) {
+      const p = POWERUPS[e.key];
+      const n = nowMs();
+      activePowerup = { type: p.type, label: p.label, color: p.color, icon: p.icon, expiresAt: n + p.duration, duration: p.duration };
+      powerupCharge = 0;
+      banners.push({ text: p.label + ' ACTIVATED', start: n, dur: 1500, color: p.color });
+    }
+    e.preventDefault();
+    return;
+  }
+  if (e.code === 'Space') {
+    keyFlash[' '] = performance.now();
+    processHitFlat(' ', false);
+    e.preventDefault();
+    return;
+  }
+  if (e.ctrlKey || e.altKey || e.metaKey) return;
+  let key = e.key;
+  const shiftHeld = e.shiftKey;
+  if (SHIFT_DIGIT_MAP[key]) key = SHIFT_DIGIT_MAP[key];
+  else if (shiftHeld && /^[A-Z]$/.test(key)) key = key.toLowerCase();
+  if (!/^[a-z0-9]$/.test(key)) return;
+  if ((mode === 'straight' || mode === 'spacey') && shiftHeld) return;
+  keyFlash[key] = performance.now();
+  processHitFlat(key, shiftHeld && mode === 'shifty');
+});
+
+// ============ Pause / Resume ============
+function pauseGame() {
+  if (state !== 'PLAYING') return;
+  state = 'PAUSED';
+  audioEl.pause();
+  pauseOverlay.style.display = 'flex';
+}
+function resumeGame() {
+  if (state !== 'PAUSED') return;
+  pauseOverlay.style.display = 'none';
+  state = 'PLAYING';
+  audioEl.play();
+  lastFrameT = 0;
+  requestAnimationFrame(loop);
+}
+document.getElementById('resumeBtn').addEventListener('click', resumeGame);
+document.getElementById('quitBtn').addEventListener('click', () => {
+  audioEl.pause();
+  audioEl.currentTime = 0;
+  pauseOverlay.style.display = 'none';
+  setupEl.style.display = 'flex';
+  state = 'SETUP';
+});
+window.addEventListener('keydown', e => {
+  if (state === 'PAUSED' && e.key === 'Escape') { resumeGame(); e.preventDefault(); }
+});
+
+// ============ Results ============
+function showResults() {
+  if (resultsShown) return;
+  resultsShown = true;
+  state = 'RESULTS';
+  audioEl.pause();
+  const total = perfectCount + goodCount + okCount + missCount;
+  const acc = total > 0 ? ((perfectCount + goodCount*0.65 + okCount*0.35) / total) * 100 : 0;
+  let grade = 'F';
+  if (acc >= 95) grade = 'S';
+  else if (acc >= 85) grade = 'A';
+  else if (acc >= 75) grade = 'B';
+  else if (acc >= 65) grade = 'C';
+  else if (acc >= 50) grade = 'D';
+  const gradeColors = { S:'#ffdd55', A:'#55ff99', B:'#5599ff', C:'#ffaa44', D:'#ff8855', F:'#ff5577' };
+  const gEl = document.getElementById('resultGrade');
+  gEl.textContent = grade;
+  gEl.style.color = gradeColors[grade];
+  gEl.style.textShadow = `0 0 50px ${gradeColors[grade]}, 0 0 90px ${gradeColors[grade]}`;
+  document.getElementById('resultScore').textContent = score.toLocaleString();
+  document.getElementById('resultAcc').textContent = acc.toFixed(1) + '%';
+  document.getElementById('resultMaxCombo').textContent = maxCombo;
+  document.getElementById('cntPerfect').textContent = perfectCount;
+  document.getElementById('cntGood').textContent = goodCount;
+  document.getElementById('cntOk').textContent = okCount;
+  document.getElementById('cntMiss').textContent = missCount;
+  const key = `hs:${songTitle}:${mode}:${difficulty}`;
+  const prev = parseInt(localStorage.getItem(key)) || 0;
+  const isNew = score > prev && score > 0;
+  if (isNew) localStorage.setItem(key, score);
+  document.getElementById('hsBannerWrap').innerHTML = isNew
+    ? '<span class="hs-banner">NEW HIGH SCORE</span>'
+    : (prev ? `<span style="color:#88aabb;font-size:12px;letter-spacing:1px;">PERSONAL BEST: ${prev.toLocaleString()}</span>` : '');
+  gEl.classList.remove('animate'); void gEl.offsetWidth; gEl.classList.add('animate');
+  resultsOverlay.style.display = 'flex';
+}
+
+document.getElementById('playAgainBtn').addEventListener('click', () => {
+  resultsOverlay.style.display = 'none';
+  audioEl.currentTime = 0;
+  resetGameStats();
+  generateNotes();
+  state = 'COUNTDOWN';
+  countdownEnd = performance.now() + 3500;
+  resultsShown = false;
+  lastFrameT = 0;
+  requestAnimationFrame(loop);
+});
+document.getElementById('backSetupBtn').addEventListener('click', () => {
+  resultsOverlay.style.display = 'none';
+  audioEl.pause();
+  audioEl.currentTime = 0;
+  setupEl.style.display = 'flex';
+  state = 'SETUP';
+});
+
+// ============ Render ============
+function renderScanlines() {
+  ctx.save();
+  ctx.globalAlpha = 0.022;
+  ctx.fillStyle = '#ffffff';
+  for (let y = 0; y < CH; y += 4) ctx.fillRect(0, y, CW, 1);
+  ctx.restore();
+}
+
+function renderHighway() {
+  const topB = flatHBounds(FL_TOP);
+  const botB = flatHBounds(FL_HIT_Y);
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(topB.left, FL_TOP);
+  ctx.lineTo(topB.right, FL_TOP);
+  ctx.lineTo(botB.right, FL_HIT_Y);
+  ctx.lineTo(botB.left, FL_HIT_Y);
+  ctx.closePath();
+  const grad = ctx.createLinearGradient(0, FL_TOP, 0, FL_HIT_Y);
+  grad.addColorStop(0, 'rgba(18,28,55,0.7)');
+  grad.addColorStop(1, 'rgba(35,55,110,0.45)');
+  ctx.fillStyle = grad;
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(120,160,220,0.18)';
+  ctx.lineWidth = 1;
+  const lanes = 10;
+  for (let i = 0; i <= lanes; i++) {
+    const f = i / lanes;
+    ctx.beginPath();
+    ctx.moveTo(topB.left + topB.width * f, FL_TOP);
+    ctx.lineTo(botB.left + botB.width * f, FL_HIT_Y);
+    ctx.stroke();
+  }
+  const nLines = 20;
+  for (let i = 1; i <= nLines; i++) {
+    const t = Math.pow(i / nLines, 2.2);
+    const y = FL_TOP + (FL_HIT_Y - FL_TOP) * t;
+    const b = flatHBounds(y);
+    ctx.strokeStyle = `rgba(120,160,220,${0.10 + 0.20 * t})`;
+    ctx.beginPath();
+    ctx.moveTo(b.left, y);
+    ctx.lineTo(b.right, y);
+    ctx.stroke();
+  }
+  const color = MODE_COLOR[mode];
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 30;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(botB.left, FL_HIT_Y);
+  ctx.lineTo(botB.right, FL_HIT_Y);
+  ctx.stroke();
+  const now = nowMs();
+  if (now - lastHitFlash < 200) {
+    const a = 1 - (now - lastHitFlash) / 200;
+    ctx.shadowBlur = 50;
+    ctx.fillStyle = rgba(color, a * 0.25);
+    ctx.fillRect(botB.left, FL_HIT_Y - 4, botB.width, 12);
+  }
+  ctx.restore();
+}
+
+function renderNotes(now) {
+  for (const n of notes) {
+    if (n.hit || n.missed) continue;
+    const sy = FL_HIT_Y - ((n.hitTime - now) / TRAVEL_MS) * (FL_HIT_Y - FL_TOP);
+    if (sy < FL_TOP - 40) continue;
+    if (sy > FL_HIT_Y + 40) continue;
+    const depth = clamp((sy - FL_TOP) / (FL_HIT_Y - FL_TOP), 0, 1);
+    if (n.isSpace) {
+      const b = flatHBounds(sy);
+      const h = 10 + 18 * depth;
+      ctx.save();
+      const grad = ctx.createLinearGradient(0, sy - h/2, 0, sy + h/2);
+      grad.addColorStop(0, lighten('#cc88ff', 0.5));
+      grad.addColorStop(1, darken('#cc88ff', 0.4));
+      ctx.fillStyle = grad;
+      ctx.shadowColor = '#cc88ff';
+      ctx.shadowBlur = 12 + 6*depth;
+      rrect(b.left, sy - h/2, b.width, h, 4 + 5*depth);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      rrect(b.left + 4, sy - h/2 + 1.5, b.width - 8, 1.5, 1);
+      ctx.fill();
+      const fs = 8 + 14 * depth;
+      ctx.font = `bold ${fs}px monospace`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#fff';
+      ctx.fillText('␣', CW / 2, sy);
+      ctx.restore();
+    } else {
+      if (KEY_POS[n.char] === undefined) continue;
+      const b = flatHBounds(sy);
+      const x = b.left + KEY_POS[n.char] * b.width;
+      const w = 16 + 24 * depth;
+      const h = 12 + 28 * depth;
+      const r = 2 + 7 * depth;
+      const baseColor = n.needsShift ? '#ffaa44' : '#55ff99';
+      ctx.save();
+      const grad = ctx.createLinearGradient(0, sy - h/2, 0, sy + h/2);
+      grad.addColorStop(0, lighten(baseColor, 0.45));
+      grad.addColorStop(1, darken(baseColor, 0.45));
+      ctx.fillStyle = grad;
+      ctx.shadowColor = baseColor;
+      ctx.shadowBlur = 6 + 10*depth;
+      rrect(x - w/2, sy - h/2, w, h, r);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      rrect(x - w/2 + 2, sy - h/2 + 2, w - 4, 1.5 + 1.5*depth, 1);
+      ctx.fill();
+      const fs = 7 + 16 * depth;
+      ctx.font = `bold ${fs}px monospace`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#0a0a18';
+      ctx.fillText(n.char.toUpperCase(), x, sy);
+      ctx.restore();
+    }
+  }
+}
+
+function renderVisualizer() {
+  if (!analyser || !freqData) return;
+  if (state !== 'PLAYING' && state !== 'COUNTDOWN') return;
+  analyser.getByteFrequencyData(freqData);
+  const cx = 92, cy = 460;
+  const panelH = 86, panelW = 130;
+  const barW = (panelW - 4) / NUM_BARS;
+  ctx.save();
+  ctx.fillStyle = 'rgba(8,12,24,0.7)';
+  rrect(cx - panelW/2, cy - panelH/2 - 14, panelW, panelH + 22, 6);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(80,140,220,0.3)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.font = 'bold 8px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#88aabb';
+  ctx.fillText('FREQ', cx, cy - panelH/2 - 4);
+  const totalBins = 93;
+  for (let b = 0; b < NUM_BARS; b++) {
+    const lo = Math.floor(Math.pow(b / NUM_BARS, 2) * totalBins);
+    const hi = Math.max(lo + 1, Math.floor(Math.pow((b + 1) / NUM_BARS, 2) * totalBins));
+    let v = 0;
+    for (let i = lo; i < hi && i < freqData.length; i++) if (freqData[i] > v) v = freqData[i];
+    const barH = (v / 255) * panelH;
+    const x = cx - panelW/2 + 2 + b * barW;
+    const y = cy + panelH/2 - barH;
+    if (barH > 1) {
+      const grad = ctx.createLinearGradient(0, y + barH, 0, y);
+      grad.addColorStop(0, '#1a3370');
+      grad.addColorStop(0.5, '#55aaff');
+      grad.addColorStop(1, '#ddeeff');
+      ctx.fillStyle = grad;
+      ctx.shadowColor = '#55aaff';
+      ctx.shadowBlur = 4;
+      ctx.fillRect(x + 0.5, y, barW - 1, barH);
+      ctx.shadowBlur = 0;
+    }
+    wmpPeaks[b] = Math.max(wmpPeaks[b] - 1.2, barH);
+    if (wmpPeaks[b] > 1) {
+      const py = cy + panelH/2 - wmpPeaks[b];
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(x + 0.5, py - 1.5, barW - 1, 2);
+    }
+  }
+  ctx.restore();
+}
+
+function renderBeatIndicator(now) {
+  const cx = 210, cy = FL_HIT_Y;
+  const phase = ((now - streamAnchorMs) % stepMs + stepMs) % stepMs;
+  const pulse = clamp(1 - phase / (stepMs * 0.3), 0, 1);
+  const color = DIFF_COLOR[difficulty];
+  ctx.save();
+  if (pulse < 1 && pulse > 0) {
+    const ghostR = 25 + (1 - pulse) * 40;
+    ctx.globalAlpha = pulse * 0.4;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, ghostR, 0, Math.PI*2);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = rgba(color, 0.3 + 0.7 * pulse);
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 10 + 30 * pulse;
+  ctx.beginPath();
+  const r = 12 + 13 * pulse;
+  ctx.arc(cx, cy, r, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function renderKeyboardViz(now) {
+  const baseX = 12;
+  const keyW = 26, keyH = 18, gap = 3;
+  const bottomY = FL_TOP + (FL_HIT_Y - FL_TOP) * 0.62;
+  const rows = [
+    { chars: '1234567890', stagger: 0 },
+    { chars: 'qwertyuiop', stagger: 0.5 },
+    { chars: 'asdfghjkl',  stagger: 0.75 },
+    { chars: 'zxcvbnm',    stagger: 1.25 },
+  ];
+  const topRowY = bottomY - 3*(keyH + gap) - keyH;
+  ctx.save();
+  for (let ri = 0; ri < rows.length; ri++) {
+    const row = rows[ri];
+    const y = topRowY + ri * (keyH + gap);
+    for (let i = 0; i < row.chars.length; i++) {
+      const ch = row.chars[i];
+      const x = baseX + (row.stagger + i) * (keyW + gap);
+      const upcoming = nextNoteFor(ch, now);
+      let glow = 0;
+      if (upcoming) {
+        const dt = upcoming.hitTime - now;
+        glow = Math.sqrt(clamp(1 - dt / TRAVEL_MS, 0, 1));
+      }
+      let flash = 0;
+      const kf = keyFlash[ch];
+      if (kf && performance.now() - kf < 180) flash = 1 - (performance.now() - kf) / 180;
+      const baseColor = upcoming && upcoming.needsShift ? '#ffaa44' : '#5599ff';
+      const fillColor = flash > 0 ? '#55ff99' : (glow > 0.05 ? lighten('#1c1c30', glow * 0.4) : '#1c1c30');
+      ctx.fillStyle = fillColor;
+      ctx.shadowColor = flash > 0 ? '#55ff99' : baseColor;
+      ctx.shadowBlur = Math.max(flash * 14, glow * 12);
+      rrect(x, y, keyW, keyH, 3);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = glow > 0.05 ? rgba(baseColor, 0.4 + glow*0.4) : 'rgba(180,200,240,0.25)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = glow > 0.3 || flash > 0 ? '#fff' : '#8898aa';
+      ctx.font = 'bold 11px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(ch.toUpperCase(), x + keyW/2, y + keyH/2);
+    }
+  }
+  if (mode === 'spacey') {
+    const spaceY = topRowY + 4 * (keyH + gap);
+    const spaceW = 5 * (keyW + gap) - gap;
+    const spaceX = baseX + 2 * (keyW + gap);
+    const upcoming = nextNoteFor(' ', now);
+    let glow = 0;
+    if (upcoming) {
+      const dt = upcoming.hitTime - now;
+      glow = Math.sqrt(clamp(1 - dt / TRAVEL_MS, 0, 1));
+    }
+    let flash = 0;
+    const kf = keyFlash[' '];
+    if (kf && performance.now() - kf < 180) flash = 1 - (performance.now() - kf) / 180;
+    const fillColor = flash > 0 ? '#55ff99' : (glow > 0.05 ? lighten('#1c1c30', glow * 0.4) : '#1c1c30');
+    ctx.fillStyle = fillColor;
+    ctx.shadowColor = flash > 0 ? '#55ff99' : '#cc88ff';
+    ctx.shadowBlur = Math.max(flash * 14, glow * 14);
+    rrect(spaceX, spaceY, spaceW, keyH, 4);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = glow > 0.05 ? rgba('#cc88ff', 0.4 + glow*0.4) : 'rgba(180,200,240,0.25)';
+    ctx.stroke();
+    ctx.fillStyle = glow > 0.3 || flash > 0 ? '#fff' : '#8898aa';
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('SPACE', spaceX + spaceW/2, spaceY + keyH/2);
+  }
+  ctx.restore();
+}
+
+function nextNoteFor(ch, now) {
+  let best = null;
+  for (const n of notes) {
+    if (n.hit || n.missed) continue;
+    if (n.char !== ch) continue;
+    if (n.hitTime < now - 50) continue;
+    if (n.hitTime > now + TRAVEL_MS * 1.5) break;
+    if (!best || n.hitTime < best.hitTime) best = n;
+  }
+  return best;
+}
+
+function renderNextNoteDisplay(now) {
+  const upcoming = [];
+  for (const n of notes) {
+    if (n.hit || n.missed) continue;
+    if (n.hitTime < now - 200) continue;
+    upcoming.push(n);
+    if (upcoming.length >= 5) break;
+  }
+  if (upcoming.length === 0) return;
+  const first = upcoming[0];
+  const wideBox = !!first.needsShift;
+  const boxW = wideBox ? 130 : 90;
+  const boxH = 90;
+  const queueW = 4 * 46 - 6;
+  const totalW = boxW + 14 + queueW;
+  const startX = CW/2 - totalW/2;
+  const cx = startX + boxW/2;
+  const cy = FL_HIT_Y + 95;
+  ctx.save();
+  const color = first.needsShift ? '#ffaa44' : (first.isSpace ? '#cc88ff' : '#55ff99');
+  ctx.fillStyle = 'rgba(15,20,35,0.85)';
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 12;
+  rrect(cx - boxW/2, cy - boxH/2, boxW, boxH, 8);
+  ctx.fill();
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.font = 'bold 54px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = color;
+  const txt = first.isSpace ? '␣' : first.char.toUpperCase();
+  ctx.fillText(txt, cx, cy - (first.needsShift ? 10 : 0));
+  if (first.needsShift) {
+    ctx.font = 'bold 11px monospace';
+    ctx.fillStyle = '#ffaa44';
+    ctx.fillText('⇧ SHIFT', cx, cy + 28);
+  }
+  let qx = cx + boxW/2 + 14;
+  for (let i = 1; i < upcoming.length; i++) {
+    const n = upcoming[i];
+    const c = n.needsShift ? '#ffaa44' : (n.isSpace ? '#cc88ff' : '#55ff99');
+    const w = 40, h = 52;
+    ctx.fillStyle = 'rgba(15,20,35,0.7)';
+    ctx.strokeStyle = c;
+    ctx.lineWidth = 1.5;
+    rrect(qx, cy - h/2, w, h, 5);
+    ctx.fill();
+    ctx.stroke();
+    ctx.font = 'bold 22px monospace';
+    ctx.fillStyle = c;
+    ctx.fillText(n.isSpace ? '␣' : n.char.toUpperCase(), qx + w/2, cy);
+    qx += w + 6;
+  }
+  ctx.restore();
+}
+
+function renderMultBar() {
+  const x = 750, y = FL_TOP, w = 28, h = FL_HIT_Y - FL_TOP;
+  ctx.save();
+  ctx.fillStyle = 'rgba(15,20,35,0.7)';
+  ctx.strokeStyle = 'rgba(120,160,220,0.3)';
+  ctx.lineWidth = 1;
+  rrect(x, y, w, h, 6);
+  ctx.fill();
+  ctx.stroke();
+  const tiers = [
+    { thresh: 0,  color: '#5599ff', label: '×1' },
+    { thresh: 3,  color: '#55ff99', label: '×2' },
+    { thresh: 6,  color: '#ffaa44', label: '×3' },
+    { thresh: 12, color: '#ff88cc', label: '×4' },
+  ];
+  const doubleActive = activePowerup && activePowerup.type === 'double';
+  const doubledLabels = ['×2','×4','×6','×8'];
+  const tierH = h / 4;
+  for (let i = 0; i < 4; i++) {
+    const t = tiers[i];
+    const yi = y + h - (i + 1) * tierH;
+    const reached = combo >= t.thresh;
+    if (reached) {
+      ctx.fillStyle = doubleActive ? rgba('#ffdd55', 0.4) : rgba(t.color, 0.5);
+      ctx.shadowColor = doubleActive ? '#ffdd55' : t.color;
+      ctx.shadowBlur = 8;
+      ctx.fillRect(x + 2, yi + 2, w - 4, tierH - 4);
+      ctx.shadowBlur = 0;
+    }
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    if (reached && doubleActive) {
+      ctx.fillStyle = '#ffdd55';
+      ctx.shadowColor = '#ffdd55';
+      ctx.shadowBlur = 8;
+    } else {
+      ctx.fillStyle = reached ? '#fff' : '#556';
+    }
+    ctx.fillText(doubleActive ? doubledLabels[i] : t.label, x + w/2, yi + tierH/2);
+    ctx.shadowBlur = 0;
+  }
+  ctx.restore();
+}
+
+function renderPowerupSlots(now) {
+  const slotOrder = ['ArrowUp','ArrowDown','ArrowRight','ArrowLeft'];
+  const sx = 815, startY = FL_TOP + 24;
+  const slotR = 20, gap = 18;
+  ctx.save();
+  for (let i = 0; i < slotOrder.length; i++) {
+    const key = slotOrder[i];
+    const p = POWERUPS[key];
+    const cy = startY + i * (slotR*2 + gap);
+    const isActive = activePowerup && activePowerup.type === p.type;
+    const isCharged = powerupCharge === 1 && !activePowerup;
+    ctx.fillStyle = 'rgba(15,20,35,0.7)';
+    ctx.strokeStyle = isCharged || isActive ? p.color : 'rgba(80,100,140,0.4)';
+    ctx.lineWidth = 1.8;
+    if (isCharged || isActive) {
+      ctx.shadowColor = p.color;
+      ctx.shadowBlur = 14;
+    }
+    ctx.beginPath();
+    ctx.arc(sx, cy, slotR, 0, Math.PI*2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    if (isActive) {
+      const remaining = clamp((activePowerup.expiresAt - now) / activePowerup.duration, 0, 1);
+      ctx.strokeStyle = p.color;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(sx, cy, slotR - 3, -Math.PI/2, -Math.PI/2 + Math.PI*2*remaining);
+      ctx.stroke();
+    }
+    ctx.font = 'bold 22px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = isCharged || isActive ? p.color : '#556';
+    ctx.fillText(p.icon, sx, cy);
+    ctx.font = 'bold 8px monospace';
+    ctx.fillStyle = isCharged || isActive ? p.color : '#556';
+    ctx.fillText(p.short, sx, cy + slotR + 8);
+  }
+  ctx.restore();
+}
+
+function renderHUD() {
+  ctx.save();
+  ctx.font = 'bold 11px monospace';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = '#88aabb';
+  ctx.fillText('SCORE', 20, 16);
+  ctx.fillStyle = '#88ccff';
+  ctx.font = 'bold 32px monospace';
+  ctx.shadowColor = '#88ccff';
+  ctx.shadowBlur = 8;
+  ctx.fillText(score.toLocaleString(), 20, 30);
+  ctx.shadowBlur = 0;
+  if (combo > 0) {
+    ctx.font = 'bold 14px monospace';
+    ctx.fillStyle = '#ffdd55';
+    ctx.shadowColor = '#ffdd55';
+    ctx.shadowBlur = 6;
+    ctx.fillText(`${combo}× COMBO`, 20, 70);
+    ctx.shadowBlur = 0;
+  }
+  ctx.font = 'bold 12px monospace';
+  ctx.textAlign = 'right';
+  ctx.fillStyle = DIFF_COLOR[difficulty];
+  ctx.fillText(difficulty.toUpperCase(), CW - 20, 18);
+  ctx.fillStyle = MODE_COLOR[mode];
+  ctx.fillText(mode.toUpperCase() + ' KEYS', CW - 20, 36);
+  if (Math.abs(targetBpm/bpm - 1) > 0.005) {
+    ctx.fillStyle = '#ffdd55';
+    ctx.fillText('× ' + (targetBpm/bpm).toFixed(2), CW - 20, 54);
+  }
+  ctx.restore();
+}
+
+function renderHitFx(dt) {
+  for (let i = hitFx.length - 1; i >= 0; i--) {
+    const f = hitFx[i];
+    f.t += dt;
+    if (f.t >= f.life) { hitFx.splice(i, 1); continue; }
+    const p = f.t / f.life;
+    const y = f.y - p * 40;
+    const a = 1 - p;
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.font = 'bold 22px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = f.color;
+    ctx.shadowColor = f.color;
+    ctx.shadowBlur = 10;
+    ctx.fillText(f.text, f.x, y);
+    ctx.restore();
+  }
+}
+
+function renderParticles(dt) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.t += dt;
+    if (p.t >= p.life) { particles.splice(i, 1); continue; }
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.18;
+    const a = 1 - p.t / p.life;
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.fillStyle = p.color;
+    ctx.shadowColor = p.color;
+    ctx.shadowBlur = 6;
+    ctx.fillRect(p.x - p.size/2, p.y - p.size/2, p.size, p.size);
+    ctx.restore();
+  }
+}
+
+function renderBanners(now) {
+  for (let i = banners.length - 1; i >= 0; i--) {
+    const b = banners[i];
+    const elapsed = now - b.start;
+    if (elapsed >= b.dur) { banners.splice(i, 1); continue; }
+    const p = elapsed / b.dur;
+    const a = p < 0.2 ? p/0.2 : (p > 0.7 ? 1 - (p - 0.7)/0.3 : 1);
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.font = 'bold 26px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = b.color || '#ffdd55';
+    ctx.shadowColor = b.color || '#ffdd55';
+    ctx.shadowBlur = 18;
+    ctx.fillText(b.text, CW/2, FL_HIT_Y - 110);
+    ctx.restore();
+  }
+}
+
+function renderCountdown() {
+  const remaining = countdownEnd - performance.now();
+  if (remaining <= 0) return;
+  let label;
+  if (remaining > 2500) label = '3';
+  else if (remaining > 1500) label = '2';
+  else if (remaining > 500) label = '1';
+  else label = 'GO!';
+  const t = label === 'GO!' ? (500 - remaining)/500 : ((remaining%1000)/1000);
+  const scale = label === 'GO!' ? 1 + t * 0.3 : 0.85 + (1 - t)*0.35;
+  ctx.save();
+  ctx.translate(CW/2, CH/2 - 20);
+  ctx.scale(scale, scale);
+  ctx.font = 'bold 140px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = label === 'GO!' ? '#55ff99' : '#ffdd55';
+  ctx.shadowColor = label === 'GO!' ? '#55ff99' : '#ffaa44';
+  ctx.shadowBlur = 40;
+  ctx.fillText(label, 0, 0);
+  ctx.restore();
+}
+
+// ============ Main Loop ============
+let lastFrameT = 0;
+function loop(t) {
+  const dt = lastFrameT ? Math.min(50, t - lastFrameT) : 16;
+  lastFrameT = t;
+  const px = canvasScale * (window.devicePixelRatio || 1);
+  ctx.setTransform(px, 0, 0, px, 0, 0);
+  ctx.clearRect(0, 0, CW, CH);
+  ctx.fillStyle = '#03030c';
+  ctx.fillRect(0, 0, CW, CH);
+
+  if (state === 'COUNTDOWN') {
+    renderVisualizer();
+    renderHighway();
+    renderKeyboardViz(nowMs());
+    renderMultBar();
+    renderPowerupSlots(nowMs());
+    renderHUD();
+    renderScanlines();
+    renderCountdown();
+    if (performance.now() >= countdownEnd) {
+      state = 'PLAYING';
+      audioEl.play().catch(() => {});
+    }
+    requestAnimationFrame(loop);
+    return;
+  }
+
+  if (state === 'PLAYING') {
+    const now = nowMs();
+    checkMisses(now);
+    if (activePowerup && now >= activePowerup.expiresAt) activePowerup = null;
+    if (audioEl.duration && audioEl.currentTime >= audioEl.duration - 0.05) {
+      showResults();
+    }
+  }
+
+  renderVisualizer();
+  renderHighway();
+  if (state === 'PLAYING') renderNotes(nowMs());
+  renderBeatIndicator(nowMs());
+  renderKeyboardViz(nowMs());
+  renderNextNoteDisplay(nowMs());
+  renderMultBar();
+  renderPowerupSlots(nowMs());
+  renderHUD();
+  renderHitFx(dt);
+  renderParticles(dt);
+  renderBanners(nowMs());
+  renderScanlines();
+
+  if (state === 'PLAYING' || state === 'COUNTDOWN') {
+    requestAnimationFrame(loop);
+  }
+}
+
+resizeCanvas();
+updateRateLabel();
+</script>
+</body>
+</html>
