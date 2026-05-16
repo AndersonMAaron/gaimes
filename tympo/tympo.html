@@ -144,12 +144,12 @@
     /* Mode cards */
     .mode-grid {
       display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 8px;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
     }
 
     .mode-card {
-      padding: 12px 6px 10px;
+      padding: 14px 12px 12px;
       background: rgba(255,255,255,0.03);
       border: 1px solid rgba(255,255,255,0.09);
       border-radius: 12px;
@@ -159,28 +159,36 @@
       transition: all 0.15s;
     }
     .mode-card:hover { background: rgba(255,255,255,0.07); }
-    .mode-card .mc-icon { font-size: 1.25rem; margin-bottom: 5px; }
-    .mode-card .mc-name { font-size: 0.78rem; font-weight: 800; letter-spacing: 0.03em; margin-bottom: 3px; }
-    .mode-card .mc-desc { font-size: 0.6rem; color: rgba(255,255,255,0.38); line-height: 1.35; }
+    .mode-card .mc-icon { font-size: 1.4rem; margin-bottom: 6px; }
+    .mode-card .mc-name { font-size: 0.88rem; font-weight: 800; letter-spacing: 0.04em; margin-bottom: 3px; }
+    .mode-card .mc-desc { font-size: 0.66rem; color: rgba(255,255,255,0.38); line-height: 1.4; }
 
     .mode-card[data-mode="straight"].active { border-color: #55ff99; background: rgba(85,255,153,0.08); }
     .mode-card[data-mode="straight"].active .mc-name { color: #55ff99; }
-    .mode-card[data-mode="shifty"].active  { border-color: #ffdd55; background: rgba(255,221,85,0.08); }
-    .mode-card[data-mode="shifty"].active  .mc-name { color: #ffdd55; }
-    .mode-card[data-mode="spacey"].active  { border-color: #cc88ff; background: rgba(204,136,255,0.08); }
-    .mode-card[data-mode="spacey"].active  .mc-name { color: #cc88ff; }
+    .mode-card[data-mode="trickeys"].active { border-color: #33ddbb; background: rgba(51,221,187,0.08); }
+    .mode-card[data-mode="trickeys"].active .mc-name { color: #33ddbb; }
 
-    .mode-card[data-mode="wordy"].active  { border-color: #44ddff; background: rgba(68,221,255,0.08); }
-    .mode-card[data-mode="wordy"].active  .mc-name { color: #44ddff; }
+    /* Ambient glow on the unselected TricKeys card */
+    .mode-card[data-mode="trickeys"]:not(.active) { border-color: rgba(51,221,187,0.18); box-shadow: 0 0 14px 3px rgba(51,221,187,0.09); }
 
-    .mode-card[data-mode="double"].active { border-color: #ff66cc; background: rgba(255,102,204,0.08); }
-    .mode-card[data-mode="double"].active .mc-name { color: #ff66cc; }
-
-    /* Ambient glow on unselected mode cards */
-    .mode-card[data-mode="shifty"]:not(.active) { border-color: rgba(255,221,85,0.18); box-shadow: 0 0 14px 3px rgba(255,221,85,0.09); }
-    .mode-card[data-mode="spacey"]:not(.active) { border-color: rgba(204,136,255,0.18); box-shadow: 0 0 14px 3px rgba(204,136,255,0.09); }
-    .mode-card[data-mode="wordy"]:not(.active)  { border-color: rgba(68,221,255,0.18);  box-shadow: 0 0 14px 3px rgba(68,221,255,0.09);  }
-    .mode-card[data-mode="double"]:not(.active) { border-color: rgba(255,102,204,0.18); box-shadow: 0 0 14px 3px rgba(255,102,204,0.09); }
+    /* Straight Keys option chips */
+    .opt-chip {
+      flex: 1; min-width: 96px;
+      display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+      padding: 8px 10px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.09);
+      border-radius: 9px;
+      cursor: pointer; user-select: none;
+      transition: all 0.12s;
+    }
+    .opt-chip:hover { background: rgba(255,255,255,0.06); }
+    .opt-chip input { width: 14px; height: 14px; accent-color: #55ff99; cursor: pointer; }
+    .opt-chip .oc-name { font-size: 0.74rem; font-weight: 700; color: rgba(255,255,255,0.8); letter-spacing: 0.03em; }
+    .opt-chip .oc-desc { font-size: 0.58rem; color: rgba(255,255,255,0.34); line-height: 1.25; }
+    .opt-chip:has(input:checked) { border-color: rgba(85,255,153,0.55); background: rgba(85,255,153,0.07); }
+    .opt-chip:has(input:checked) .oc-name { color: #55ff99; }
+    .opt-chip.kb-subfocus { box-shadow: 0 0 0 2px rgba(255,255,255,0.7); }
 
     /* Ambient glow on unselected difficulty buttons */
     .diff-btn[data-diff="easy"]:not(.active)   { border-color: rgba(85,255,153,0.2);  box-shadow: 0 0 10px 2px rgba(85,255,153,0.1);  }
@@ -464,11 +472,13 @@
   </div>
 
   <div class="form-group" id="fgOffbeat" style="margin-top:-6px">
-    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none">
-      <input type="checkbox" id="offbeatToggle" style="width:15px;height:15px;accent-color:#5599ff;cursor:pointer">
-      <span style="color:rgba(255,255,255,0.75);font-size:0.78rem;font-weight:600;letter-spacing:0.04em">Toggle Offbeat</span>
-      <span style="color:rgba(255,255,255,0.32);font-size:0.68rem;font-weight:400;line-height:1.3">Shift key placements to the offbeat</span>
-    </label>
+    <label class="form-label">Options <span style="color:rgba(255,255,255,0.18);font-size:0.62rem;text-transform:none;letter-spacing:0;font-weight:400">(←→ to move · Enter to toggle · modifiers apply to Straight Keys)</span></label>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <label class="opt-chip" data-opt="0"><input type="checkbox" id="offbeatToggle"><span class="oc-name">Offbeat</span><span class="oc-desc">Shift grid to the offbeat</span></label>
+      <label class="opt-chip" data-opt="1"><input type="checkbox" id="optShiftyToggle"><span class="oc-name">Shifty</span><span class="oc-desc">Some notes need Shift</span></label>
+      <label class="opt-chip" data-opt="2"><input type="checkbox" id="optDoubleToggle"><span class="oc-name">Double</span><span class="oc-desc">Some notes are 2-key duos</span></label>
+      <label class="opt-chip" data-opt="3"><input type="checkbox" id="optSpaceyToggle"><span class="oc-name">Spacey</span><span class="oc-desc">Space on every offbeat</span></label>
+    </div>
   </div>
 
   <div class="form-group" id="fgOffset" style="margin-top:-6px">
@@ -487,27 +497,12 @@
       <div class="mode-card active" data-mode="straight">
         <div class="mc-icon">⌨️</div>
         <div class="mc-name">Straight Keys</div>
-        <div class="mc-desc">No modifiers — keys fall at their keyboard position</div>
+        <div class="mc-desc">A steady stream — tune it with the Options above</div>
       </div>
-      <div class="mode-card" data-mode="shifty">
-        <div class="mc-icon">⇧</div>
-        <div class="mc-name">Shifty Keys</div>
-        <div class="mc-desc">Mix of plain and Shift-modified keystrokes</div>
-      </div>
-      <div class="mode-card" data-mode="spacey">
-        <div class="mc-icon">␣</div>
-        <div class="mc-name">Spacey Keys</div>
-        <div class="mc-desc">Space bar between every note on the offbeat</div>
-      </div>
-      <div class="mode-card" data-mode="wordy">
-        <div class="mc-icon">📝</div>
-        <div class="mc-name">Wordy Keys</div>
-        <div class="mc-desc">Type whole words — letter by letter on the beat</div>
-      </div>
-      <div class="mode-card" data-mode="double">
-        <div class="mc-icon">⧉</div>
-        <div class="mc-name">Double Keys</div>
-        <div class="mc-desc">Two keys at once — half as often, both required</div>
+      <div class="mode-card" data-mode="trickeys">
+        <div class="mc-icon">🎲</div>
+        <div class="mc-name">TricKeys</div>
+        <div class="mc-desc">Random chained "Tricks" — the style shifts every few measures</div>
       </div>
     </div>
   </div>
@@ -787,13 +782,14 @@ const CTRL_BLACKLIST = new Set([
 
 // ── Difficulty definitions ─────────────────────────────────
 // Each difficulty drives chain-based note generation.
-// shiftPct: fraction of Shifty-mode notes that require Shift (0–1)
+// shiftPct:  fraction of notes that require Shift when the Shifty option is on
+// doublePct: fraction of notes that become a 2-key duo when the Double option is on
 // hitM is uniform across all difficulties.
 const DIFFICULTY_DEFS = {
-  easy:   { label: 'Easy',   color: '#55ff99', hitM: 1.0, shiftPct: 0.25 },
-  medium: { label: 'Medium', color: '#5599ff', hitM: 1.0, shiftPct: 0.35 },
-  hard:   { label: 'Hard',   color: '#ffaa44', hitM: 1.0, shiftPct: 0.40 },
-  expert: { label: 'Expert', color: '#ff5577', hitM: 1.0, shiftPct: 0.45 },
+  easy:   { label: 'Easy',   color: '#55ff99', hitM: 1.0, shiftPct: 0.25, doublePct: 0.12 },
+  medium: { label: 'Medium', color: '#5599ff', hitM: 1.0, shiftPct: 0.35, doublePct: 0.20 },
+  hard:   { label: 'Hard',   color: '#ffaa44', hitM: 1.0, shiftPct: 0.40, doublePct: 0.30 },
+  expert: { label: 'Expert', color: '#ff5577', hitM: 1.0, shiftPct: 0.45, doublePct: 0.40 },
 };
 const DIFF_KEYS = ['easy','medium','hard','expert'];
 
@@ -809,7 +805,13 @@ const POWERUPS = {
 // ═══════════════════════════════════════════════════════════
 
 let gameState = 'SETUP';
-let mode       = 'straight'; // 'straight' | 'shifty' | 'spacey'
+let mode       = 'straight'; // 'straight' | 'trickeys'
+// Straight Keys modifier options (combinable). Ignored by TricKeys, which
+// chains its own per-Trick styles.
+let optShifty  = false; // some notes require Shift
+let optDouble  = false; // some notes are 2-key duos
+let optSpacey  = false; // a Space note sits on every offbeat
+let trickTimeline = []; // TricKeys only: [{ start, end, style }] for the trick-name panel
 let streamAnchorMs = 0; // hitTime of the first stream note, used by beat indicator
 let difficulty = 'medium';   // 'easy' | 'medium' | 'hard' | 'expert'
 let notes        = [];
@@ -831,6 +833,7 @@ let audioOffset  = 0; // ms — positive shifts hit window later (compensates ea
 // Sections: 0=music 1=bpm 2=targetBpm 3=offbeat 4=offset 5=mode 6=difficulty 7=numpct 8=start
 let menuSection    = 0;
 let menuModeIdx    = 0;
+let optCursor      = 0;  // sub-cursor within the Options section (0..3)
 let pauseFocusIdx  = 0;
 let resultsFocusIdx= 0;
 let numericPct     = 5;  // % of notes that are digits (0–100)
@@ -907,69 +910,126 @@ function getStreamStepMs() {
   }
 }
 
+// A "style" is the set of modifiers active for a stretch of the song.
+//   shiftProb  — chance a (non-duo) note needs Shift
+//   doubleProb — chance a note is a 2-key duo
+//   spacey     — emit a Space note on every offbeat
+//   wordy      — emit word notes instead of single keys
+// Straight Keys = one composite style (from the menu toggles) for the whole
+// song. TricKeys = a chain of pure-style "Tricks" of 2–4 measures each.
+const TRICK_STYLES = ['straight', 'shifty', 'double', 'spacey', 'wordy'];
+const TRICK_WEIGHTS = { straight: 0.30, shifty: 0.25, double: 0.20, spacey: 0.15, wordy: 0.10 };
+
+// Display name, blurb, and accent color for each Trick style.
+const TRICK_INFO = {
+  straight: { name: 'Clean Run',      desc: 'Single keys, nothing fancy', color: '#55ff99' },
+  shifty:   { name: 'Shift Happens',  desc: 'Some keys need Shift',        color: '#ffaa44' },
+  double:   { name: 'Double Trouble', desc: 'Two keys at once',            color: '#ff66cc' },
+  spacey:   { name: 'Space Oddity',   desc: 'Space on every offbeat',      color: '#cc88ff' },
+  wordy:    { name: 'Word Up',        desc: 'Type the whole word',         color: '#44ddff' },
+};
+
+function styleParams(name) {
+  const sp = DIFFICULTY_DEFS[difficulty].shiftPct;
+  switch (name) {
+    case 'shifty': return { shiftProb: sp, doubleProb: 0, spacey: false, wordy: false };
+    case 'double': return { shiftProb: 0,  doubleProb: 1, spacey: false, wordy: false };
+    case 'spacey': return { shiftProb: 0,  doubleProb: 0, spacey: true,  wordy: false };
+    case 'wordy':  return { shiftProb: 0,  doubleProb: 0, spacey: false, wordy: true  };
+    default:       return { shiftProb: 0,  doubleProb: 0, spacey: false, wordy: false };
+  }
+}
+
+function pickTrickStyle() {
+  let r = Math.random();
+  for (const s of TRICK_STYLES) { r -= TRICK_WEIGHTS[s]; if (r <= 0) return s; }
+  return 'straight';
+}
+
 function generateNotes() {
   const beatMs        = 60000 / bpm;
   const stepMs        = getStreamStepMs();
+  const measureMs     = beatMs * 4;          // 1 measure = 4 beats
   const rawLeadIn     = Math.max(2200, TRAVEL_MS * 1.05);
   const snappedLeadIn = Math.ceil(rawLeadIn / beatMs) * beatMs;
   const offbeatShift  = offbeat ? beatMs / 2 : 0;
   const songEnd       = songDuration - 2000;
+  const shiftPct      = DIFFICULTY_DEFS[difficulty].shiftPct;
+  const doublePct     = DIFFICULTY_DEFS[difficulty].doublePct;
   const result        = [];
   let id = 0;
 
-  function pickChar() {
-    const r = Math.random() * 100;
-    if (r < numericPct) return '0123456789'[Math.floor(Math.random() * 10)];
-    // Space bar appears ~8% of the time in straight/shifty (not spacey/wordy which own space)
-    if ((mode === 'straight' || mode === 'shifty') && r < numericPct + 8) return ' ';
+  function pickKey() {
+    if (Math.random() * 100 < numericPct) return '0123456789'[Math.floor(Math.random() * 10)];
     return 'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random() * 26)];
   }
 
+  // Fresh word queue (used by any wordy stretch)
+  wordyQueue = [...WORDY_DICT[difficulty]].sort(() => Math.random() - 0.5);
+  wordyQueueIdx = 0;
+
   streamAnchorMs = snappedLeadIn + offbeatShift;
-  let t = streamAnchorMs;
 
-  if (mode === 'wordy') {
-    // Reset word queue at game start
-    wordyQueue = [...WORDY_DICT[difficulty]].sort(() => Math.random() - 0.5);
-    wordyQueueIdx = 0;
-
-    const wordStepMs = stepMs * 2; // half as often — gives time to type each word
-    while (t < songEnd) {
-      const word = wordyNextWord();
-      result.push({
-        id: id++, word, letterIdx: 0,
-        char: word[0],          // char = first letter (used for keyboard glow)
-        lane: 0, hitTime: t, state: 'active', needsShift: false,
-      });
-      t += wordStepMs;
-    }
-  } else if (mode === 'double') {
-    // Two distinct keys per note, presented half as often
-    function pickDoubleChar() {
-      const r = Math.random() * 100;
-      if (r < numericPct) return '0123456789'[Math.floor(Math.random() * 10)];
-      return 'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random() * 26)];
-    }
-    const doubleStepMs = stepMs * 2;
-    while (t < songEnd) {
-      const c1 = pickDoubleChar();
-      let c2 = pickDoubleChar(), guard = 0;
-      while (c2 === c1 && guard++ < 16) c2 = pickDoubleChar();
-      result.push({
-        id: id++, char: c1, char2: c2, lane: 0, hitTime: t,
-        state: 'active', needsShift: false, isDouble: true, got1: false, got2: false,
-      });
-      t += doubleStepMs;
+  // Build the segment list
+  const segments = [];
+  trickTimeline = [];
+  if (mode === 'trickeys') {
+    let s = streamAnchorMs;
+    while (s < songEnd) {
+      const measures = 2 + Math.floor(Math.random() * 3);  // 2–4 measures
+      const end = Math.min(songEnd, s + measures * measureMs);
+      const st = pickTrickStyle();
+      segments.push({ end, ...styleParams(st) });
+      trickTimeline.push({ start: s, end, style: st });
+      s = end;
     }
   } else {
-    while (t < songEnd) {
-      const char       = pickChar();
-      const needsShift = mode === 'shifty' && Math.random() < DIFFICULTY_DEFS[difficulty].shiftPct;
-      result.push({ id: id++, char, lane: 0, hitTime: t, state: 'active', needsShift });
+    // Straight Keys — one composite segment from the menu toggles
+    segments.push({
+      end: songEnd,
+      shiftProb:  optShifty ? shiftPct  : 0,
+      doubleProb: optDouble ? doublePct : 0,
+      spacey:     optSpacey,
+      wordy:      false,
+    });
+  }
 
-      if (mode === 'spacey') {
+  // Emit notes. `t` carries across segments so the grid stays continuous
+  // (stepMs always divides measureMs, so segments stay measure-aligned).
+  let t = streamAnchorMs;
+  for (const seg of segments) {
+    if (seg.wordy) {
+      const wordStepMs = stepMs * 2; // gives time to type each word
+      while (t < seg.end && t < songEnd) {
+        const word = wordyNextWord();
+        result.push({
+          id: id++, word, letterIdx: 0, char: word[0],
+          lane: 0, hitTime: t, state: 'active', needsShift: false,
+        });
+        t += wordStepMs;
+      }
+      continue;
+    }
+    while (t < seg.end && t < songEnd) {
+      let isDouble = false, needsShift = false;
+      if (seg.doubleProb > 0 && Math.random() < seg.doubleProb) isDouble = true;
+      else if (seg.shiftProb > 0 && Math.random() < seg.shiftProb) needsShift = true;
+
+      if (isDouble) {
+        const c1 = pickKey();
+        let c2 = pickKey(), guard = 0;
+        while (c2 === c1 && guard++ < 16) c2 = pickKey();
+        result.push({
+          id: id++, char: c1, char2: c2, lane: 0, hitTime: t,
+          state: 'active', needsShift: false, isDouble: true, got1: false, got2: false,
+        });
+      } else {
+        result.push({ id: id++, char: pickKey(), lane: 0, hitTime: t, state: 'active', needsShift });
+      }
+
+      if (seg.spacey) {
         const spaceTime = t + stepMs / 2;
-        if (spaceTime < songEnd)
+        if (spaceTime < seg.end && spaceTime < songEnd)
           result.push({ id: id++, char: ' ', lane: 0, hitTime: spaceTime, state: 'active', needsShift: false });
       }
 
@@ -1012,6 +1072,7 @@ document.addEventListener('keydown', e => {
         e.preventDefault();
         if (menuSection === 1) { setBpm(bpm - 1); }
         if (menuSection === 2) { setTargetBpm(targetBpm - 1); }
+        if (menuSection === 3) { optCursor = (optCursor + 3) % 4; updateMenuFocus(); }
         if (menuSection === 4) { audioOffset = Math.max(-150, audioOffset - 5); document.getElementById('audioOffsetInput').value = audioOffset; }
         if (menuSection === 5) applyMenuMode((menuModeIdx + MENU_MODES.length - 1) % MENU_MODES.length);
         if (menuSection === 6) applyDifficulty(DIFF_KEYS[(DIFF_KEYS.indexOf(difficulty) + 3) % 4]);
@@ -1022,6 +1083,7 @@ document.addEventListener('keydown', e => {
         e.preventDefault();
         if (menuSection === 1) { setBpm(bpm + 1); }
         if (menuSection === 2) { setTargetBpm(targetBpm + 1); }
+        if (menuSection === 3) { optCursor = (optCursor + 1) % 4; updateMenuFocus(); }
         if (menuSection === 4) { audioOffset = Math.min(150, audioOffset + 5); document.getElementById('audioOffsetInput').value = audioOffset; }
         if (menuSection === 5) applyMenuMode((menuModeIdx + 1) % MENU_MODES.length);
         if (menuSection === 6) applyDifficulty(DIFF_KEYS[(DIFF_KEYS.indexOf(difficulty) + 1) % 4]);
@@ -1033,7 +1095,10 @@ document.addEventListener('keydown', e => {
         if (menuSection === 0) document.getElementById('musicFile').click();
         if (menuSection === 1) { document.getElementById('bpmInput').focus(); document.getElementById('bpmInput').select(); }
         if (menuSection === 2) { document.getElementById('targetBpmInput').focus(); document.getElementById('targetBpmInput').select(); }
-        if (menuSection === 3) document.getElementById('offbeatToggle').click();
+        if (menuSection === 3) {
+          const ids = ['offbeatToggle','optShiftyToggle','optDoubleToggle','optSpaceyToggle'];
+          document.getElementById(ids[optCursor]).click();
+        }
         if (menuSection === 4) calOpen();
         if (menuSection === 7) { document.getElementById('numPctInput').focus(); document.getElementById('numPctInput').select(); }
         if (menuSection === 8) {
@@ -1086,20 +1151,16 @@ document.addEventListener('keydown', e => {
     return;
   }
 
-  // Shift+number fires a symbol key (!, @, #…). Map back to the base digit for Shifty mode.
+  // Shift+number fires a symbol key (!, @, #…). Map it back to the base digit
+  // (shift notes can appear in any game now, so always remap when Shift is held).
   const SHIFT_SYMBOLS = {'!':'1','@':'2','#':'3','$':'4','%':'5','^':'6','&':'7','*':'8','(':'9',')':'0'};
-  const rawKey = e.key.toLowerCase();
-  const key = (mode === 'shifty' && e.shiftKey && SHIFT_SYMBOLS[e.key])
+  const key = (e.shiftKey && SHIFT_SYMBOLS[e.key])
     ? SHIFT_SYMBOLS[e.key]
-    : rawKey;
+    : e.key.toLowerCase();
 
-  // Space bar — spacey mode (offbeat mechanic) or straight/shifty (regular note, no shift)
+  // Space bar — only valid for Space notes (Spacey option / spacey Trick)
   if (e.key === ' ') {
-    if (mode === 'spacey') {
-      e.preventDefault();
-      keyPressMap[' '] = performance.now();
-      processHitFlat(' ', false);
-    } else if ((mode === 'straight' || mode === 'shifty') && !e.shiftKey && !e.ctrlKey && !e.altKey) {
+    if (!e.shiftKey && !e.ctrlKey && !e.altKey) {
       e.preventDefault();
       keyPressMap[' '] = performance.now();
       processHitFlat(' ', false);
@@ -1108,30 +1169,31 @@ document.addEventListener('keydown', e => {
   }
 
   if (!/^[a-z0-9]$/.test(key)) return;
+  if (e.ctrlKey || e.altKey) return;   // Shift is allowed (Shifty notes)
   e.preventDefault();
 
   keyPressMap[key] = performance.now();
 
-  if (mode === 'wordy') {
-    if (e.shiftKey || e.ctrlKey || e.altKey) return;
-    processHitWordy(key);
-    return;
-  }
+  // Route by what's actually on the highway right now, not by a global mode.
+  const now = audioEl.currentTime * 1000 + audioOffset;
+  const ow  = hitWindows().ok;
 
-  if (mode === 'double') {
-    if (e.shiftKey || e.ctrlKey || e.altKey) return;
-    processHitDouble(key);
-    return;
-  }
+  // 1. A word currently arrived & still being typed → letters feed the word
+  const wordHere = notes.some(n =>
+    n.state === 'active' && n.word &&
+    n.letterIdx < n.word.length &&
+    now >= n.hitTime - ow);
+  if (wordHere) { processHitWordy(key); return; }
 
-  if (mode === 'shifty') {
-    if (e.ctrlKey || e.altKey) return;
-    processHitFlat(key, e.shiftKey);
-  }
-  else { // straight / spacey
-    if (e.shiftKey || e.ctrlKey || e.altKey) return;
-    processHitFlat(key, false);
-  }
+  // 2. This key completes/advances a pending duo in the window
+  const duoHere = notes.some(n =>
+    n.state === 'active' && n.isDouble &&
+    Math.abs(now - n.hitTime) <= ow &&
+    ((key === n.char && !n.got1) || (key === n.char2 && !n.got2)));
+  if (duoHere) { processHitDouble(key); return; }
+
+  // 3. Plain / Shift / Space note
+  processHitFlat(key, e.shiftKey);
 });
 
 document.addEventListener('keyup', e => {
@@ -1173,6 +1235,7 @@ function processHitFlat(char, shiftHeld) {
   } else {
     cands = notes.filter(n =>
       n.state === 'active' &&
+      !n.isDouble && !n.word &&        // duos/words have their own handlers
       n.char === char &&
       n.needsShift === shiftHeld &&
       Math.abs(nowMs - n.hitTime) <= ow
@@ -1448,6 +1511,7 @@ function drawFrame(nowMs) {
     drawWaveform();
     drawFlatBackground();
     drawKeyboard(0);
+    drawTrickPanel(0);
     drawMultBar();
     drawPowerupOverlay(0);
     drawHUD(0);
@@ -1461,6 +1525,7 @@ function drawFrame(nowMs) {
   drawFlatNotes(nowMs);
   drawBeatIndicator(nowMs);
   drawKeyboard(nowMs);
+  drawTrickPanel(nowMs);
   drawNextNote();
   drawMultBar();
   drawPowerupOverlay(nowMs);
@@ -1479,16 +1544,81 @@ function drawScanlines() {
 }
 
 function _modeColor() {
-  if (mode === 'shifty') return '#ffdd55';
-  if (mode === 'spacey') return '#cc88ff';
-  if (mode === 'wordy')  return '#44ddff';
-  if (mode === 'double') return '#ff66cc';
+  if (mode === 'trickeys') return '#33ddbb';
   return '#55ff99';
 }
 
 function _hexToRgba(hex, a) {
   const [r,g,b] = hexToRgb(hex);
   return `rgba(${r},${g},${b},${a})`;
+}
+
+// The Trick currently being played (or the first upcoming one before the song
+// starts). Returns null outside TricKeys.
+function currentTrick(nowMs) {
+  if (mode !== 'trickeys' || !trickTimeline.length) return null;
+  for (const seg of trickTimeline) if (nowMs < seg.end) return seg;
+  return trickTimeline[trickTimeline.length - 1];
+}
+
+// Name + blurb of the active Trick, on the left, just above the keyboard viz.
+let _trickPanelStyle = null, _trickPanelChangedAt = 0;
+function drawTrickPanel(nowMs) {
+  const seg = currentTrick(nowMs);
+  if (!seg) return;
+  const info = TRICK_INFO[seg.style] || TRICK_INFO.straight;
+
+  if (seg.style !== _trickPanelStyle) {
+    _trickPanelStyle = seg.style;
+    _trickPanelChangedAt = performance.now();
+  }
+  const since = performance.now() - _trickPanelChangedAt;
+  const pop   = clamp(1 - since / 550, 0, 1); // brief emphasis on change
+
+  const kbBottom = Math.round(FL_TOP + (FL_HIT_Y - FL_TOP) * 0.62);
+  const kbTop    = kbBottom - 4 * KB_STEP_Y;
+  const x = 12, w = 240, h = 56;
+  const y = kbTop - 12 - h;
+
+  ctx.save();
+  // Panel
+  ctx.fillStyle = 'rgba(15,20,35,0.7)';
+  ctx.strokeStyle = _hexToRgba(info.color, 0.45 + 0.4 * pop);
+  ctx.lineWidth = 1.5;
+  ctx.shadowColor = info.color;
+  ctx.shadowBlur = 8 + 16 * pop;
+  rrect(ctx, x, y, w, h, 8);
+  ctx.fill();
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Accent bar on the left edge
+  ctx.fillStyle = info.color;
+  rrect(ctx, x, y, 4, h, 2);
+  ctx.fill();
+
+  ctx.textBaseline = 'alphabetic';
+  ctx.textAlign = 'left';
+
+  // "TRICK" eyebrow
+  ctx.font = 'bold 9px monospace';
+  ctx.fillStyle = _hexToRgba(info.color, 0.7);
+  ctx.fillText('▸ TRICK', x + 14, y + 16);
+
+  // Name
+  ctx.font = 'bold 18px monospace';
+  ctx.fillStyle = info.color;
+  ctx.shadowColor = info.color;
+  ctx.shadowBlur = 6 + 10 * pop;
+  ctx.fillText(info.name, x + 14, y + 35);
+  ctx.shadowBlur = 0;
+
+  // Description
+  ctx.font = '11px monospace';
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.fillText(info.desc, x + 14, y + 49);
+
+  ctx.restore();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -2160,22 +2290,31 @@ function drawWordyPreview() {
 // ─── Next-note display ───────────────────────────────────────
 
 function drawNextNote() {
-  if (mode === 'wordy') { drawWordyPreview(); return; }
+  // If a word has arrived and is being typed, show the typing-trainer preview.
+  const now = audioEl.currentTime * 1000 + audioOffset;
+  const ow  = hitWindows().ok;
+  const wordHere = notes.some(n =>
+    n.state === 'active' && n.word &&
+    n.letterIdx < n.word.length &&
+    now >= n.hitTime - ow);
+  if (wordHere) { drawWordyPreview(); return; }
 
   const upcoming = notes.filter(n => n.state === 'active').slice(0, 5);
   if (!upcoming.length) return;
 
   const first = upcoming[0];
   const isSpace = first.char === ' ';
-  const noteColor = (n) => n.isDouble ? '#ff66cc'
+  const noteColor = (n) => n.word ? '#44ddff'
+    : n.isDouble ? '#ff66cc'
     : n.char === ' ' ? '#cc88ff'
     : (n.needsShift ? '#ffaa44' : '#55ff99');
-  const noteLabel = (n) => n.isDouble ? (n.char.toUpperCase() + '+' + n.char2.toUpperCase())
+  const noteLabel = (n) => n.word ? (n.word.length > 5 ? n.word.slice(0,4).toUpperCase()+'…' : n.word.toUpperCase())
+    : n.isDouble ? (n.char.toUpperCase() + '+' + n.char2.toUpperCase())
     : n.char === ' ' ? '␣'
     : n.char.toUpperCase();
   const color = noteColor(first);
 
-  const wideBox = !!first.needsShift || !!first.isDouble;
+  const wideBox = !!first.needsShift || !!first.isDouble || !!first.word;
   const boxW = wideBox ? 150 : 90;
   const boxH = 90;
   const queueW = 4 * 46 - 6;
@@ -2195,7 +2334,7 @@ function drawNextNote() {
   ctx.stroke();
   ctx.shadowBlur = 0;
 
-  ctx.font = `bold ${first.isDouble ? 40 : 54}px monospace`;
+  ctx.font = `bold ${(first.isDouble || first.word) ? 32 : 54}px monospace`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = color;
@@ -2342,8 +2481,8 @@ function drawKeyboard(nowMs) {
     });
   });
 
-  // Space bar — rendered when relevant
-  if (mode === 'spacey' || mode === 'straight' || mode === 'shifty') {
+  // Space bar — Space notes can appear in either mode (Spacey option / spacey Trick)
+  if (mode === 'straight' || mode === 'trickeys') {
     const spaceW = 5 * KB_STEP_X - KB_GAP_X;
     const spaceX = KB_LEFT + 2 * KB_STEP_X;
     const spaceY = kbTop + 4 * KB_STEP_Y;
@@ -2580,9 +2719,7 @@ function drawHUD(nowMs) {
   ctx.fillStyle = DIFFICULTY_DEFS[difficulty].color;
   ctx.fillText(DIFFICULTY_DEFS[difficulty].label.toUpperCase(), CW - 20, 18);
   ctx.fillStyle = _modeColor();
-  const modeLabel = (mode === 'wordy') ? 'WORDY KEYS'
-    : (mode === 'double') ? 'DOUBLE KEYS'
-    : (mode.toUpperCase() + ' KEYS');
+  const modeLabel = (mode === 'trickeys') ? 'TRICKEYS' : 'STRAIGHT KEYS';
   ctx.fillText(modeLabel, CW - 20, 36);
 
   if (bpm > 0 && Math.abs((targetBpm / bpm) - 1) > 0.005) {
@@ -2709,7 +2846,7 @@ function showResults() {
   const perfectPct=tot>0?(perfects/tot)*100:0;
   const grade=acc>=95?'S':acc>=85?'A':acc>=70?'B':acc>=60?'C':acc>=50?'D':'F';
   const gc={S:'#ffdd55',A:'#55ff99',B:'#5599ff',C:'#ffaa44',D:'#cc55ff',F:'#ff5577'};
-  const modeName=mode==='straight'?'Straight Keys':mode==='shifty'?'Shifty Keys':mode==='spacey'?'Spacey Keys':mode==='wordy'?'Wordy Keys':mode==='double'?'Double Keys':'Tympo';
+  const modeName=mode==='trickeys'?'TricKeys':'Straight Keys';
 
   // High score (keyed by songTitle + mode + difficulty)
   const hsKey=`hs:${songTitle||''}:${mode}:${difficulty}`;
@@ -2794,7 +2931,7 @@ function showScreen(name) {
 
 // ── Keyboard navigation helpers ──────────────────────────────
 
-const MENU_MODES = ['straight', 'shifty', 'spacey', 'wordy', 'double'];
+const MENU_MODES = ['straight', 'trickeys'];
 
 function applyMenuMode(idx) {
   menuModeIdx = idx;
@@ -2819,6 +2956,10 @@ function updateMenuFocus() {
   // Mode cards (section 5)
   document.querySelectorAll('.mode-card').forEach((c, i) =>
     c.classList.toggle('kb-focus', menuSection === 5 && i === menuModeIdx));
+
+  // Options sub-cursor (section 3)
+  document.querySelectorAll('.opt-chip').forEach((c, i) =>
+    c.classList.toggle('kb-subfocus', menuSection === 3 && i === optCursor));
 
   // Difficulty (section 6)
   document.querySelectorAll('.diff-btn').forEach(b =>
@@ -2920,8 +3061,14 @@ document.getElementById('targetBpmInput').addEventListener('input', e => {
   updateRateLabel();
 });
 
-// Offbeat
+// Options (Offbeat + Straight Keys modifiers)
 document.getElementById('offbeatToggle').addEventListener('change', e => { offbeat = e.target.checked; });
+document.getElementById('optShiftyToggle').addEventListener('change', e => { optShifty = e.target.checked; });
+document.getElementById('optDoubleToggle').addEventListener('change', e => { optDouble = e.target.checked; });
+document.getElementById('optSpaceyToggle').addEventListener('change', e => { optSpacey = e.target.checked; });
+document.querySelectorAll('.opt-chip').forEach((chip, i) => {
+  chip.addEventListener('click', () => { menuSection = 3; optCursor = i; updateMenuFocus(); });
+});
 
 // Audio offset
 document.getElementById('audioOffsetInput').addEventListener('input', e => {

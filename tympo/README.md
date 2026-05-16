@@ -6,26 +6,39 @@ A Guitar Hero-style rhythm game played entirely with a standard keyboard. Alphan
 
 ## Modes
 
+There are **two modes**. Both share the same foundation (a continuous, beat-locked stream of keys on a perspective highway); they differ only in how note *styles* are arranged over time.
+
 | Mode | Description |
 |------|-------------|
-| **Straight Keys** | Random alphanumeric keys plus occasional Space bar (~8%), no modifiers. Notes fall at their physical QWERTY position on the highway. |
-| **Shifty Keys** | Same as Straight (including Space bar notes), but a fraction of notes require Shift simultaneously. Space notes are never Shift-modified. Shift notes glow orange; plain/space notes glow green. |
-| **Spacey Keys** | Same as Straight, but the Space bar must be pressed on the offbeat between every letter note. Space notes appear as a wide purple bar spanning the full highway width. |
-| **Wordy Keys** | Full words fall as wide cyan banners. The player types the word letter-by-letter; each letter is scored individually. The preview area becomes a typing-trainer display showing the current word (with typed letters struck-through, next letter highlighted in white, remaining letters dim) and the next word in a smaller box to the right. |
-| **Double Keys** | Notes arrive **half as often** as the difficulty's normal interval, but each note is a **duo of two distinct keys** that must both be pressed within the hit window (order doesn't matter). The two keys fall side-by-side at their own QWERTY positions, joined by a glowing connector, with a larger semi-transparent `K1+K2` combo plate centred between them. Notes glow pink (`#ff66cc`). |
+| **Straight Keys** | A steady stream of random alphanumeric keys at the difficulty's interval. Three independent, **combinable** options in the menu shape it: **Shifty**, **Double**, **Spacey** (see below). With all options off it is plain single keys. |
+| **TricKeys** | Same foundation, but the song is split into a random chain of **Tricks** — runs of **2–4 measures** (1 measure = 4 beats), each in one randomly-chosen *pure* style. No extra options; the Straight Keys toggles are ignored here. |
+
+### Styles / Straight Keys options
+
+A "style" is just which modifiers are active for a stretch of song. Straight Keys uses one composite style for the whole song (whichever options are toggled, mixed probabilistically). TricKeys picks one pure style per Trick.
+
+| Style | Effect | Color |
+|-------|--------|-------|
+| (plain) | Single key at its QWERTY position | green `#55ff99` |
+| **Shifty** | A per-difficulty fraction of notes require Shift (`shiftPct`); those glow orange `#ffaa44`. Space is never Shift-modified. |
+| **Double** | A note is a **duo of two distinct keys** that must both be pressed within the window (order-independent), joined by a glowing connector with a semi-transparent `K1+K2` combo plate centred between them. As a Straight option, a per-difficulty `doublePct` of notes become duos; as a TricKeys *double* Trick, every note in the chunk is a duo. Pink `#ff66cc`. |
+| **Spacey** | A Space note sits on every offbeat (`t + stepMs/2`), drawn as a wide purple bar. Purple `#cc88ff`. |
+| **Wordy** | Whole words fall as wide cyan banners, typed letter-by-letter. Only reachable as a TricKeys *wordy* Trick (it is no longer a standalone mode). Cyan `#44ddff`. |
+
+In Straight Keys, a single note is plain **or** Shift **or** a duo (Shifty and Double never apply to the same note); Spacey adds Space notes on top of whatever else is active. TricKeys style pool weights: straight 0.30, shifty 0.25, double 0.20, spacey 0.15, wordy 0.10.
 
 ---
 
 ## Difficulty
 
-Four presets control the **note interval** (how often a note appears), word complexity in Wordy mode, and in Shifty mode, the probability of a Shift note:
+Four presets control the **note interval** (how often a note appears), the Shift / Double probabilities (when those styles are active), and word complexity in wordy Tricks:
 
-| Difficulty | Interval | Grid | Shifty shift% | Wordy words |
-|------------|----------|------|---------------|-------------|
-| Easy | Whole note | Every 4 beats | 25% | 3–4 letter common words |
-| Medium | Half note | Every 2 beats | 35% | 5–6 letter common words |
-| Hard | Quarter note | Every beat | 40% | 6–8 letter uncommon words |
-| Expert | Eighth note | Every half-beat | 45% | 8–12 letter rare/technical words |
+| Difficulty | Interval | Grid | shiftPct | doublePct | Wordy words |
+|------------|----------|------|----------|-----------|-------------|
+| Easy | Whole note | Every 4 beats | 25% | 12% | 3–4 letter common words |
+| Medium | Half note | Every 2 beats | 35% | 20% | 5–6 letter common words |
+| Hard | Quarter note | Every beat | 40% | 30% | 6–8 letter uncommon words |
+| Expert | Eighth note | Every half-beat | 45% | 40% | 8–12 letter rare/technical words |
 
 At 120 BPM: whole = 2000 ms, half = 1000 ms, quarter = 500 ms, eighth = 250 ms.
 
@@ -46,7 +59,7 @@ function hitWindows() {
 
 ## Note Generation
 
-All three modes share a single generator. Notes form a continuous stream — no warmup silence, no rests:
+Both modes share a single generator that produces a continuous stream — no warmup silence, no rests. `getStepMs()` returns the note interval by difficulty:
 
 ```javascript
 function getStepMs() {
@@ -58,36 +71,14 @@ function getStepMs() {
     case 'expert': return step16 * 2;  // eighth note
   }
 }
-
-function generateNotes() {
-  const beatMs        = 60000 / bpm;
-  const stepMs        = getStepMs();
-  const rawLeadIn     = Math.max(2200, TRAVEL_MS * 1.05);
-  // Snap to a whole-beat boundary so the stream locks to the song's grid
-  const snappedLeadIn = Math.ceil(rawLeadIn / beatMs) * beatMs;
-  const offbeatShift  = offbeat ? beatMs / 2 : 0;
-
-  streamAnchorMs = snappedLeadIn + offbeatShift;
-  let t = streamAnchorMs;
-
-  while (t < songDuration - 2000) {
-    const char       = pickChar();   // random a-z or 0-9
-    const needsShift = mode === 'shifty' && Math.random() < shiftPct;
-    result.push({ char, hitTime: t, needsShift, ... });
-
-    if (mode === 'spacey') {
-      // Space note halfway between this and the next letter note
-      result.push({ char: ' ', hitTime: t + stepMs / 2, ... });
-    }
-
-    t += stepMs;
-  }
-}
 ```
 
-`streamAnchorMs` is stored globally and used by the beat indicator to stay phase-locked to the notes.
+`generateNotes()` first builds a list of **segments** `{ end, shiftProb, doubleProb, spacey, wordy }`, then walks the step grid emitting notes for whichever segment the current time falls in. `t` carries across segment boundaries so the grid stays continuous; because `stepMs` always divides `measureMs` (`beatMs * 4`), segments stay measure-aligned.
 
-**Wordy** and **Double** modes use their own branches: words advance by `stepMs * 2`; double notes advance by `stepMs * 2` and carry two distinct keys (`char` + `char2`, regenerated until they differ) plus `isDouble`, `got1`, `got2` flags.
+- **Straight Keys** → one segment spanning the whole song: `shiftProb = optShifty ? shiftPct : 0`, `doubleProb = optDouble ? doublePct : 0`, `spacey = optSpacey`.
+- **TricKeys** → a chain of segments, each `2 + floor(rand*3)` measures long (2–4), with parameters from a randomly-weighted pure style (`styleParams(pickTrickStyle())`).
+
+Per step: roll `doubleProb` (→ a `{char, char2, isDouble, got1, got2}` duo with two distinct keys), else roll `shiftProb` (→ `needsShift`), else a plain key; if `spacey`, also push a Space note at `t + stepMs/2`. A `wordy` segment instead emits word notes at `stepMs * 2`. `streamAnchorMs` is stored globally and used by the beat indicator to stay phase-locked.
 
 ---
 
@@ -189,9 +180,9 @@ The filled disc expands (radius `12 + 13 * pulse` → 12px idle, 25px at peak) a
 
 ---
 
-## Wordy Keys Mode
+## Wordy Style
 
-Words are generated from a per-difficulty dictionary and fall as wide cyan banners down the highway (same perspective highway as other flat modes). One word occupies one note slot in the beat schedule.
+Wordy is no longer a standalone mode — it appears only as a *wordy* Trick inside TricKeys. Words are generated from a per-difficulty dictionary and fall as wide cyan banners down the highway. One word occupies one note slot in the beat schedule. The word queue (`wordyQueue`) is seeded once per game in `generateNotes()` and drawn from across all wordy Tricks.
 
 **Dictionaries** (`WORDY_DICT`):
 - `easy` — ~100 words, 3–4 letters (cat, dog, run, sky…)
@@ -201,7 +192,7 @@ Words are generated from a per-difficulty dictionary and fall as wide cyan banne
 
 Words are shuffled each game; the queue reshuffles when exhausted. The active word is `wordyNextWord()` drawing from `wordyQueue`.
 
-**Frequency:** Words spawn at **2× the normal step interval** (`stepMs * 2`) — half as often as other modes — giving the player time to type each word fully before the next arrives.
+**Frequency:** Within a wordy Trick, words spawn at **2× the normal step interval** (`stepMs * 2`) — giving the player time to type each word fully before the next arrives.
 
 **Typing gate:** The player **cannot type a word until it crosses the hit line**. `processHitWordy` filters to `arrived = active.filter(n => nowMs >= n.hitTime - ok_window)` and silently ignores keypresses when nothing has arrived yet.
 
@@ -215,13 +206,33 @@ Words are shuffled each game; the queue reshuffles when exhausted. The active wo
 
 ---
 
-## Double Keys Mode
+## Double Style
 
-Double notes spawn at **`stepMs * 2`** (half as often as the difficulty's normal cadence). Each note carries two distinct keys — `char` and `char2` — both letters/digits (no space, no Shift). The pair is regenerated until the two keys differ.
+Double is a Straight Keys option and a TricKeys Trick style — not a standalone mode. As a Straight option, a per-difficulty `doublePct` of notes become duos (Easy 0.12 → Expert 0.40). As a *double* Trick, **every** note in that chunk is a duo (`doubleProb = 1`). Each duo carries two distinct keys — `char` and `char2` — both letters/digits (no Space, no Shift); the pair is regenerated until the keys differ.
 
-**Hit logic** (`processHitDouble`): Each keypress looks for the nearest active double note (within the OK window) that still needs that specific key, and sets its `got1`/`got2` flag. The note is **not scored until both keys are down**; the completing press is graded via the normal `scoreNote` timing windows (one combo unit per duo). The first key of a pair gives light particle feedback only. Stray keys cause no penalty (consistent with the other flat modes). A duo that expires with only one key pressed is a single miss and resets the combo. Autopilot/Hacker powerups score the whole duo at once.
+**Hit logic** (`processHitDouble`): Each keypress looks for the nearest active double note (within the OK window) that still needs that specific key, and sets its `got1`/`got2` flag. The note is **not scored until both keys are down**; the completing press is graded via the normal `scoreNote` timing windows (one combo unit per duo). The first key of a pair gives light particle feedback only. Stray keys cause no penalty. A duo that expires with only one key pressed is a single miss and resets the combo. Autopilot/Hacker powerups score the whole duo at once.
 
-**Highway display:** Both keys are drawn at their own QWERTY x-positions on the same scroll line, joined by a glowing pink connector. A larger (1.5× note height), semi-transparent (~0.42 alpha) combo plate showing `K1+K2` is centred between them, with the two solid key bubbles on top. A key bubble already pressed for that duo turns green and dims to 55% alpha. Mode/note color is pink `#ff66cc`. The keyboard visualization glows for **both** keys of an upcoming duo, and the next-note box widens to fit the `K1+K2` label.
+**Highway display:** Both keys are drawn at their own QWERTY x-positions on the same scroll line, joined by a glowing pink connector. If the two keys are close enough that the bubbles would overlap, they are spread symmetrically around their midpoint (`minSep = w + 6 + 4*depth`) so both stay readable. A larger (1.5× note height), semi-transparent (~0.42 alpha) combo plate showing `K1+K2` is centred between them, with the two solid key bubbles on top. A key bubble already pressed for that duo turns green and dims to 55% alpha. Color is pink `#ff66cc`. The keyboard visualization glows for **both** keys of an upcoming duo, and the next-note box widens to fit the `K1+K2` label.
+
+---
+
+## TricKeys
+
+TricKeys reuses the Straight Keys foundation but splits the song into a random chain of **Tricks**. Each Trick is `2 + floor(rand*3)` measures long (**2–4 measures**, where 1 measure = `beatMs * 4`), running one randomly-chosen *pure* style for that span before the next Trick begins. Styles are weighted: `straight 0.30, shifty 0.25, double 0.20, spacey 0.15, wordy 0.10` (`pickTrickStyle()` / `styleParams()`). `t` carries across Trick boundaries so the beat grid never breaks.
+
+Input is routed by **what is actually on the highway**, not a global mode: each keypress checks (1) is a word arrived & being typed → `processHitWordy`; (2) does this key advance a pending duo in the window → `processHitDouble`; (3) otherwise `processHitFlat(key, shiftHeld)` (plain / Shift / Space). The hit-zone line is teal `#33ddbb`. Mini-games inside a song (e.g. "complete the alphabet in N measures") are a planned future Trick type — not yet implemented.
+
+### Trick name panel
+
+`generateNotes()` records a module-level `trickTimeline` of `{ start, end, style }`. During play, `drawTrickPanel()` finds the active (or first upcoming) Trick via `currentTrick(nowMs)` and shows a small panel on the **left, just above the keyboard visualizer**: a `▸ TRICK` eyebrow, the Trick's clever name in its accent color, and a one-line blurb. A left accent bar and a ~550 ms glow/pop emphasize each Trick change. The panel only renders in TricKeys (Straight Keys has no Tricks).
+
+| Style | Name | Blurb | Color |
+|-------|------|-------|-------|
+| straight | **Clean Run** | Single keys, nothing fancy | `#55ff99` |
+| shifty | **Shift Happens** | Some keys need Shift | `#ffaa44` |
+| double | **Double Trouble** | Two keys at once | `#ff66cc` |
+| spacey | **Space Oddity** | Space on every offbeat | `#cc88ff` |
+| wordy | **Word Up** | Type the whole word | `#44ddff` |
 
 ---
 
@@ -259,7 +270,7 @@ The sqrt curve means the glow ramps slowly when the note is far away, then accel
 
 When a key is physically pressed, it flashes bright green (`#55ff99`) for 180 ms, regardless of timing accuracy.
 
-In Spacey Keys mode, a space bar is rendered below the four letter rows — a wide key (~5 key-widths) centered under the keyboard. It glows purple when a space note is approaching and flashes green when Space is pressed.
+A space bar is always rendered below the four letter rows — a wide key (~5 key-widths) centered under the keyboard (Space notes can appear in either mode via the Spacey option or a spacey Trick). It glows purple when a space note is approaching and flashes green when Space is pressed.
 
 ---
 
@@ -328,7 +339,9 @@ A positive `audioOffset` shifts the effective "now" forward — if the user natu
 |---------|--------|
 | **BPM** | The song's actual tempo. Sets the beat grid for note generation and hit windows. |
 | **Target BPM** | The tempo the song is played at. `audioEl.playbackRate = targetBpm / bpm`, pitch-preserving. Equal to BPM = no speed change. Auto-tracks BPM until manually edited. |
-| **Difficulty** | Easy / Medium / Hard / Expert — controls note interval and Shifty shift probability. |
+| **Difficulty** | Easy / Medium / Hard / Expert — controls note interval, `shiftPct`, and `doublePct`. |
+| **Mode** | Straight Keys or TricKeys. |
+| **Options** | Four checkboxes: **Offbeat** (both modes) plus **Shifty / Double / Spacey** (Straight Keys only — combinable; ignored by TricKeys). ←→ moves the sub-cursor, Enter toggles. |
 | **Number Keys %** | Fraction of notes drawn from `0–9` vs `a–z`. Default 5%. |
 | **Offbeat** | Shifts the note grid by half a beat (notes land on eighth-note offbeats). Beat indicator phase shifts to match. |
 | **Audio Offset** | Manual timing trim for when calibration isn't needed. |
