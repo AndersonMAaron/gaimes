@@ -600,6 +600,7 @@ const FL_HIT_Y  = 560;
 const FL_H      = FL_HIT_Y - FL_TOP;
 const FL_TOP_W  = 120;   // highway width at vanishing point (narrow)
 const FL_BOT_W  = 420;   // highway width at hit zone
+const TRAIL_PX  = 80;    // fade-out zone directly below the hit line
 
 // ── Lane colors (Tympo) ────────────────────────────────
 const LANES = [
@@ -820,6 +821,7 @@ let combo        = 0;
 let maxCombo     = 0;
 let perfects = 0, goods = 0, oks = 0, misses = 0;
 let hitFx        = [];
+let hitPulses    = []; // upward shockwaves spawned on a clean hit
 let particles    = [];
 let laneFlash    = [0,0,0,0];
 let keyPressMap  = {}; // char → performance.now() of last press
@@ -1250,6 +1252,7 @@ function processHitFlat(char, shiftHeld) {
   const sx  = cands[0].char === ' ' ? CW/2 : flatNoteX(cands[0].char, FL_HIT_Y);
   spawnFx(sx, FL_HIT_Y - 22, cands[0].hitGrade, col);
   spawnParticles(sx, FL_HIT_Y, col, cands[0].hitGrade === 'Perfect' ? 18 : 11);
+  spawnPulse(sx, col);
   laneFlash[0] = 1.0;
 }
 
@@ -1308,6 +1311,7 @@ function processHitWordy(char) {
 
   spawnFx(CW / 2, FL_HIT_Y - 22, grade, '#44ddff');
   spawnParticles(CW / 2, FL_HIT_Y, '#44ddff', grade === 'Perfect' ? 14 : 8);
+  spawnPulse(CW / 2, '#44ddff');
   laneFlash[0] = 0.85;
 
   // Update note's char to the next letter (for keyboard glow)
@@ -1348,6 +1352,7 @@ function processHitDouble(char) {
     scoreNote(n, nowMs, pw, gw);
     spawnFx(CW / 2, FL_HIT_Y - 22, n.hitGrade, DCOL);
     spawnParticles(CW / 2, FL_HIT_Y, DCOL, n.hitGrade === 'Perfect' ? 18 : 11);
+    spawnPulse(CW / 2, DCOL);
     laneFlash[0] = 1.0;
   } else {
     // First of the pair — light partial feedback, no score yet
@@ -1408,6 +1413,7 @@ function autoScoreNote(note) {
   const sx = note.char === ' ' ? CW/2 : flatNoteX(note.char, FL_HIT_Y);
   spawnFx(sx, FL_HIT_Y - 22, 'Good', '#ff88cc');
   spawnParticles(sx, FL_HIT_Y, '#ff88cc', 10);
+  spawnPulse(sx, '#ff88cc');
   laneFlash[0] = 0.7;
 }
 
@@ -1468,6 +1474,10 @@ function spawnFx(x, y, text, color) {
   hitFx.push({ x, y, text, color, opacity:1.0, vy:-1.6 });
 }
 
+function spawnPulse(x, color) {
+  hitPulses.push({ x, color, life:1 });
+}
+
 function updateParticles() {
   for (const p of particles) { p.x+=p.vx; p.y+=p.vy; p.vy+=0.14; p.life-=p.decay; }
   particles = particles.filter(p => p.life > 0);
@@ -1476,6 +1486,8 @@ function updateParticles() {
 function updateFx() {
   for (const h of hitFx) { h.y+=h.vy; h.opacity-=0.022; }
   hitFx = hitFx.filter(h => h.opacity > 0);
+  for (const p of hitPulses) p.life -= 0.055;
+  hitPulses = hitPulses.filter(p => p.life > 0);
 }
 
 function updateLaneFlash() {
@@ -1523,6 +1535,7 @@ function drawFrame(nowMs) {
   drawWaveform();
   drawFlatBackground();
   drawFlatNotes(nowMs);
+  drawHitPulses();
   drawBeatIndicator(nowMs);
   drawKeyboard(nowMs);
   drawTrickPanel(nowMs);
@@ -1814,6 +1827,7 @@ function drawFlatBackground() {
 
   // Hit zone rendering (formerly drawFlatHitZone)
   drawFlatHitZone();
+  drawHitTrailZone();
 }
 
 function drawFlatGuides() {
@@ -1835,24 +1849,36 @@ function flatNoteY(hitTime, nowMs) {
   return FL_HIT_Y - t * FL_H;
 }
 
+// A plain single-letter note (the common Straight Keys note that dissolves
+// into the trail zone instead of vanishing the instant it crosses the line).
+function isPlainNote(n) { return !n.word && !n.isDouble && n.char !== ' '; }
+
 function drawFlatNotes(nowMs) {
   const visible = notes.filter(n => {
-    if (n.state !== 'active') return false;
     const sy = flatNoteY(n.hitTime, nowMs);
-    // Word notes: show until deadline (freeze keeps them at hit line, never below)
-    if (n.word) return sy > FL_TOP - 50;
-    return sy > FL_TOP - 40 && sy < FL_HIT_Y + 40;
+    if (n.word) return n.state === 'active' && sy > FL_TOP - 50;
+    if (n.state === 'active')
+      return sy > FL_TOP - 40 && sy < FL_HIT_Y + (isPlainNote(n) ? TRAIL_PX : 40);
+    // Missed plain notes keep falling, fading out down the trail zone so they
+    // dissolve rather than blinking off the moment the window closes.
+    if (n.state === 'missed' && isPlainNote(n))
+      return sy > FL_HIT_Y && sy < FL_HIT_Y + TRAIL_PX;
+    return false;
   });
   visible.sort((a,b) => flatNoteY(a.hitTime,nowMs)-flatNoteY(b.hitTime,nowMs));
   for (const note of visible) {
     const sy = flatNoteY(note.hitTime, nowMs);
     // Freeze word banners at the hit line once they arrive
     const drawY = note.word ? Math.min(sy, FL_HIT_Y) : sy;
-    drawFlatNote(note, drawY);
+    // Past the hit line, plain notes fade to transparent across the trail zone
+    let alpha = 1;
+    if (drawY > FL_HIT_Y && isPlainNote(note))
+      alpha = clamp(1 - (drawY - FL_HIT_Y) / TRAIL_PX, 0, 1);
+    drawFlatNote(note, drawY, alpha);
   }
 }
 
-function drawFlatNote(note, sy) {
+function drawFlatNote(note, sy, alpha = 1) {
   // ── Wordy mode: word banner falling down the highway ────────
   if (note.word) {
     const { sx, w } = flatHBounds(sy);
@@ -2026,6 +2052,7 @@ function drawFlatNote(note, sy) {
   const col = note.needsShift ? '#ffaa44' : '#55ff99';
 
   ctx.save();
+  ctx.globalAlpha = alpha;
   const grad = ctx.createLinearGradient(0, sy - h/2, 0, sy + h/2);
   grad.addColorStop(0, lighten(col, 0.45));
   grad.addColorStop(1, darken(col, 0.45));
@@ -2068,6 +2095,84 @@ function drawFlatHitZone() {
     ctx.fillRect(sx, FL_HIT_Y - 4, w, 12);
   }
   ctx.restore();
+}
+
+// Soft glow that bleeds downward from the hit line so notes appear to
+// dissolve into it rather than hard-cut. Drawn under the falling notes.
+function drawHitTrailZone() {
+  const { sx, w } = flatHBounds(FL_HIT_Y);
+  const col = _modeColor();
+
+  ctx.save();
+  const g = ctx.createLinearGradient(0, FL_HIT_Y, 0, FL_HIT_Y + TRAIL_PX);
+  g.addColorStop(0,    _hexToRgba(col, 0.16));
+  g.addColorStop(0.45, _hexToRgba(col, 0.05));
+  g.addColorStop(1,    _hexToRgba(col, 0));
+  ctx.fillStyle = g;
+  ctx.fillRect(sx, FL_HIT_Y, w, TRAIL_PX);
+
+  // Faint "drip" guides under each key, fading out toward the bottom
+  ctx.lineWidth = 1;
+  for (const pos of Object.values(KEY_POS)) {
+    const x  = sx + pos * w;
+    const lg = ctx.createLinearGradient(0, FL_HIT_Y, 0, FL_HIT_Y + TRAIL_PX);
+    lg.addColorStop(0, _hexToRgba(col, 0.13));
+    lg.addColorStop(1, _hexToRgba(col, 0));
+    ctx.strokeStyle = lg;
+    ctx.beginPath();
+    ctx.moveTo(x, FL_HIT_Y);
+    ctx.lineTo(x, FL_HIT_Y + TRAIL_PX);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// Upward shockwave on a clean hit: a rising tapered beam, a lifting ring,
+// and a brief white core flash at the point of impact.
+function drawHitPulses() {
+  for (const p of hitPulses) {
+    const e = 1 - p.life;            // 0 → 1 progress
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+
+    // Rising beam shooting up off the hit line
+    const beamH = 70 + 90 * e;
+    const beamW = 26 * (1 - e * 0.5);
+    const topY  = FL_HIT_Y - beamH;
+    const bg = ctx.createLinearGradient(0, FL_HIT_Y, 0, topY);
+    bg.addColorStop(0,    _hexToRgba(p.color, 0));
+    bg.addColorStop(0.18, _hexToRgba(p.color, 0.45 * p.life));
+    bg.addColorStop(1,    _hexToRgba(p.color, 0));
+    ctx.fillStyle = bg;
+    ctx.beginPath();
+    ctx.moveTo(p.x - beamW/2,    FL_HIT_Y);
+    ctx.lineTo(p.x + beamW/2,    FL_HIT_Y);
+    ctx.lineTo(p.x + beamW*0.18, topY);
+    ctx.lineTo(p.x - beamW*0.18, topY);
+    ctx.closePath();
+    ctx.fill();
+
+    // Expanding ring that lifts off the line
+    const rad = 8 + 46 * e;
+    const ry  = FL_HIT_Y - 22 * e;
+    ctx.strokeStyle = _hexToRgba(p.color, 0.7 * p.life);
+    ctx.lineWidth   = 2.5 * p.life + 0.5;
+    ctx.shadowColor = p.color;
+    ctx.shadowBlur  = 14 * p.life;
+    ctx.beginPath();
+    ctx.ellipse(p.x, ry, rad, rad * 0.55, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Bright impact core, only at the very start
+    if (p.life > 0.55) {
+      ctx.fillStyle = _hexToRgba('#ffffff', (p.life - 0.55) * 1.6);
+      ctx.beginPath();
+      ctx.ellipse(p.x, FL_HIT_Y, 10, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
 }
 
 
@@ -2782,7 +2887,7 @@ function drawCountdown() {
 
 async function beginGame() {
   score=0; combo=0; maxCombo=0; perfects=0; goods=0; oks=0; misses=0; keyPressMap={};
-  hitFx=[]; particles=[]; laneFlash=[0,0,0,0];
+  hitFx=[]; hitPulses=[]; particles=[]; laneFlash=[0,0,0,0];
   heldMods={shift:false,ctrl:false,alt:false};
   powerupCharge=0; activePowerup=null;
   ensureAnalyser();
