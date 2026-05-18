@@ -1,4 +1,4 @@
-# Tympo
+# TricKeys
 
 A Guitar Hero-style rhythm game played entirely with a standard keyboard. Alphanumeric keys are the instrument — notes fall down a perspective highway and must be pressed at the right moment to score points. All modes generate a continuous, beat-locked stream of random keys; the differences between modes are which extra inputs are required.
 
@@ -24,8 +24,12 @@ A "style" is just which modifiers are active for a stretch of song. Straight Key
 | **Double** | A note is a **duo of two distinct keys** that must both be pressed within the window (order-independent), joined by a glowing connector with a semi-transparent `K1+K2` combo plate centred between them. As a Straight option, a per-difficulty `doublePct` of notes become duos; as a TricKeys *double* Trick, every note in the chunk is a duo. Pink `#ff66cc`. |
 | **Spacey** | A Space note sits on every offbeat (`t + stepMs/2`), drawn as a wide purple bar. Purple `#cc88ff`. |
 | **Wordy** | Whole words fall as wide cyan banners, typed letter-by-letter. Only reachable as a TricKeys *wordy* Trick (it is no longer a standalone mode). Cyan `#44ddff`. |
+| **Alphabetter** | **Timed challenge** (not beat-bound): type the whole alphabet A→Z as fast as possible within a 4-measure window. TricKeys-only. Gold `#f5c84b`. |
+| **Mot a Trois** | The grid switches to triplets — one key emitted three times at `stepMs/3` spacing before the next key. Three pips over each note count the beat-of-three. Beat-bound. TricKeys-only. Coral `#ff7a59`. |
+| **Login Odyssey 2026** | **Timed challenge**: enter 4 random 6-digit MFA codes (24 digits) as fast as possible within a 4-measure window. TricKeys-only. Mint `#5ce6b0`. |
+| **Crazy Cutter** | **Timed challenge**: trace a continuous keyboard loop (a string of adjacent keys, e.g. `qwertyuioplmnbvcxzaq`) in order, as fast as possible within a 3-measure window. TricKeys-only. Lime `#aef24a`. |
 
-In Straight Keys, a single note is plain **or** Shift **or** a duo (Shifty and Double never apply to the same note); Spacey adds Space notes on top of whatever else is active. TricKeys style pool weights: straight 0.30, shifty 0.25, double 0.20, spacey 0.15, wordy 0.10.
+**Timed-challenge Tricks** (Alphabetter / Login Odyssey / Crazy Cutter) are *not* beat-bound. Each is a self-paced minigame: the Trick occupies a fixed window (`CHALLENGE_MEASURES` — alphabet 4, mfa 4, path 3), and a single challenge object is generated for the whole window instead of a note stream. The player types the entire scripted sequence as quickly as they can; correct keys advance progress (each worth a small base score + combo), and **finishing pays a speed bonus scaled by the fraction of the window still left** (`400 + 1600·frac`, × multiplier). A wrong key just flashes ✕ (no penalty); if the window expires, every unsolved item is a miss and the combo resets. Mot a Trois stays beat-bound (a note stream). In Straight Keys, a single note is plain **or** Shift **or** a duo (Shifty and Double never apply to the same note); Spacey adds Space notes on top of whatever else is active. TricKeys style pool weights: straight 0.20, shifty 0.15, double 0.13, spacey 0.10, wordy 0.10, alphabetter 0.09, triplet 0.09, login 0.07, cutter 0.07 — renormalized over whichever Tricks are enabled in MaTricks.
 
 ---
 
@@ -162,6 +166,13 @@ Each note is a rounded rect drawn **centered** on `sy` (so the note straddles th
 
 The hit zone line is a single 3px stroke in the active **mode color** (`#55ff99` Straight, `#ffdd55` Shifty, `#cc88ff` Spacey, `#44ddff` Wordy) with a 30px shadow blur. Successful hits trigger a brief mode-color flash band along the hit line.
 
+### Hit-Trail Zone & Hit Pulse
+
+Two effects use the **beat color** — `DIFFICULTY_DEFS[difficulty].color`, the exact same source as the [Beat Indicator](#beat-indicator) (orange `#ffaa44` on Hard, green/blue/red on Easy/Medium/Expert). A shared `_beatColor()` helper keeps the trail, the pulse, and the beat indicator visually locked together.
+
+- **Hit-trail zone** (`drawHitTrailZone`) — a `TRAIL_PX = 80` fade-out band directly *below* the hit line, drawn under the falling notes. A vertical gradient (`0.16 → 0.05 → 0` alpha in the beat color) plus faint per-key "drip" guides under each `KEY_POS`. Plain single-letter notes keep falling past the line and fade to transparent across this band (hit *or* missed) so they dissolve instead of hard-cutting; word/double/space notes still clip at the line.
+- **Hit pulse** (`drawHitPulses`, spawned by `spawnPulse()` on every clean hit, autopilot score, completed duo, or wordy letter) — a single upward shockwave spanning the **whole hit line** (not per-key): a beat-color sheet of light rising off the entire line following the highway taper, a bright crest that lifts off the line as it fades, and a brief white flash along the line at impact. Each pulse lives ~18 frames (`life -= 0.055`).
+
 ---
 
 ## Beat Indicator
@@ -218,9 +229,13 @@ Double is a Straight Keys option and a TricKeys Trick style — not a standalone
 
 ## TricKeys
 
-TricKeys reuses the Straight Keys foundation but splits the song into a random chain of **Tricks**. Each Trick is `2 + floor(rand*3)` measures long (**2–4 measures**, where 1 measure = `beatMs * 4`), running one randomly-chosen *pure* style for that span before the next Trick begins. Styles are weighted: `straight 0.30, shifty 0.25, double 0.20, spacey 0.15, wordy 0.10` (`pickTrickStyle()` / `styleParams()`). `t` carries across Trick boundaries so the beat grid never breaks.
+TricKeys reuses the Straight Keys foundation but splits the song into a random chain of **Tricks**. A Trick's length comes from `styleMeasures()`: beat-bound Tricks are `2 + floor(rand*3)` measures (2–4); timed-challenge Tricks use their fixed `CHALLENGE_MEASURES` window (1 measure = `beatMs * 4`). `pickTrickStyle()` draws from `TRICK_WEIGHTS` but only over Tricks left enabled in MaTricks (`trickEnabled`), renormalizing the weights; at least one Trick is always enabled. `styleParams()` maps a style to its generator (`gen: 'normal' | 'alphabet' | 'triplet' | 'mfa' | 'path'`, plus `wordy`/`spacey`/prob flags). For beat-bound segments `t` carries across Trick boundaries so the grid never breaks; a challenge segment emits one challenge object and snaps `t` to its end so following beat-bound Tricks stay aligned.
 
-Input is routed by **what is actually on the highway**, not a global mode: each keypress checks (1) is a word arrived & being typed → `processHitWordy`; (2) does this key advance a pending duo in the window → `processHitDouble`; (3) otherwise `processHitFlat(key, shiftHeld)` (plain / Shift / Space). The hit-zone line is teal `#33ddbb`. Mini-games inside a song (e.g. "complete the alphabet in N measures") are a planned future Trick type — not yet implemented.
+Input is routed by **what is actually on the highway**, not a global mode. A live timed challenge owns *all* key input first (`activeChallenge()` → `processChallengeKey()`), ahead of powerups. Otherwise each keypress checks (1) is a word arrived & being typed → `processHitWordy`; (2) does this key advance a pending duo in the window → `processHitDouble`; (3) otherwise `processHitFlat(key, shiftHeld)` (plain / Shift / Space). Mot a Trois is a plain single-key note stream, so it routes through `processHitFlat`. The hit-zone line is teal `#33ddbb` (or, during a single-Trick trial, that Trick's accent color).
+
+### Trying a single Trick
+
+The MaTricks detail panel has a **▶ Try this Trick** button (enabled once a music file is loaded). It snapshots the current Main Menu settings (song, BPM/target BPM, difficulty, etc.), sets `trialStyle`, and launches a single-Trick run via `beginGame()`. `generateNotes()` builds one segment of that style sized by `styleMeasures()` (beat-bound trials = 8 measures; challenge trials = that challenge's window). `gameLoop()` ends the run at `trialEndMs` — segment end + travel for beat-bound, or shortly after the challenge resolves/expires — and shows the normal results screen, labeled *Trick Trial · &lt;name&gt;* with no high-score write. Returning to setup clears `trialStyle`.
 
 ### Trick name panel
 
@@ -233,6 +248,21 @@ Input is routed by **what is actually on the highway**, not a global mode: each 
 | double | **Double Trouble** | Two keys at once | `#ff66cc` |
 | spacey | **Space Oddity** | Space on every offbeat | `#cc88ff` |
 | wordy | **Word Up** | Type the whole word | `#44ddff` |
+| alphabetter | **Alphabetter** | Type the alphabet in order | `#f5c84b` |
+| triplet | **Mot a Trois** | Triplets — one key, ×3 | `#ff7a59` |
+| login | **Login Odyssey 2026** | Enter the MFA codes | `#5ce6b0` |
+| cutter | **Crazy Cutter** | Trace the keyboard loop | `#aef24a` |
+
+**In-highway challenge overlay.** The three timed challenges take over the highway with a large focused panel (`drawChallenge()`, drawn over a dimmed highway; `challengeInWindow()` selects it and `drawNextNote()` early-returns so the box is suppressed). It shows the Trick name, a depleting **time bar**, and a kind-specific body: **Alphabetter** → an A–Z grid (typed dim, current lit, remaining outlined); **Login Odyssey 2026** → 4 stacked code rows of digit boxes that fill as you type, completed codes checked; **Crazy Cutter** → a large keyboard with the loop as a polyline and a glowing tracer on the next key. The footer shows progress, and on finish a **SOLVED · +bonus** banner (or **TIME** on expiry); the bar freezes at the fraction earned. **Mot a Trois** stays beat-bound — the normal next-note box plus three pips above each highway note marking the beat-of-three.
+
+### MaTricks (trick guide)
+
+A small **MaTricks** button (a pun on *Matrix* / *"ma tricks"*) sits just below the TricKeys mode card on the setup screen. It opens a two-panel reference popup (`#mtOverlay`):
+
+- **Left panel** (`#mtList`) — a clickable list of all Trick names, color-accented per Trick. Each row has an **ON/OFF** pill that toggles whether that Trick appears in the random TricKeys rotation (`trickEnabled`); the last enabled Trick can't be turned off (it shake-rejects). Up/Down/Left/Right arrows cycle the selection while the popup is open.
+- **Right panel** (`#mtDetail`) — the selected Trick's name (in its accent color), one-line blurb, a CSS-rendered **visual preview**, a longer description, an **IN ROTATION / EXCLUDED** toggle, and a **▶ Try this Trick** button (disabled until a song is loaded; see *Trying a single Trick* above).
+
+Closed via the ✕ button, an overlay-backdrop click, or Escape. Names, blurbs, and colors are sourced from the same `TRICK_INFO` map used by the in-game Trick panel; the popup adds only the longer copy (`MATRICKS`) and the preview markup (`mtPreview()`). A capture-phase `keydown` listener keeps Escape/arrow keys from reaching the setup-screen handler while the popup is open.
 
 ---
 
@@ -372,7 +402,7 @@ Target BPM defaults to 120 and auto-tracks the BPM input (including the TAP dete
 
 ---
 
-Build a single-file browser rhythm game called **Tympo** (`keyhero.html`). No build tools, no dependencies — everything in one HTML file with inline CSS and JavaScript.
+Build a single-file browser rhythm game called **TricKeys** (`keyhero.html`). No build tools, no dependencies — everything in one HTML file with inline CSS and JavaScript.
 
 ### Core concept
 

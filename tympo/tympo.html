@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tympo</title>
+  <title>TricKeys</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -47,9 +47,6 @@
       margin-bottom: 32px;
       letter-spacing: 0.04em;
     }
-    .brand-ty  { color: rgba(255,255,255,0.8); font-weight: 800; }
-    .brand-mpo { color: rgba(200,160,255,0.85); font-weight: 800; }
-
     .form-group { margin-bottom: 20px; }
 
     .form-label {
@@ -430,12 +427,165 @@
       font-weight: 600;
     }
     #calCancelBtn:hover { background: rgba(255,255,255,0.07); }
+
+    /* ── MaTricks button + trick-guide popup ── */
+    .matricks-btn {
+      display: inline-flex; align-items: baseline; gap: 6px;
+      padding: 7px 16px;
+      background: rgba(140,90,255,0.10);
+      border: 1px solid rgba(170,120,255,0.34);
+      border-radius: 9px;
+      color: rgba(210,180,255,0.92);
+      font-size: 0.74rem; font-weight: 800;
+      letter-spacing: 0.16em; text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, transform 0.1s;
+    }
+    .matricks-btn:hover  { background: rgba(150,100,255,0.20); border-color: rgba(190,140,255,0.6); }
+    .matricks-btn:active { transform: translateY(1px); }
+    .matricks-btn .mb-sub { font-size:0.62rem; font-weight:600; letter-spacing:0.04em; text-transform:none; color:rgba(255,255,255,0.32); }
+
+    #mtOverlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,8,0.93);
+      z-index: 210;
+      align-items: center; justify-content: center;
+      padding: 24px;
+    }
+    #mtModal {
+      position: relative;
+      width: min(780px, 94vw);
+      background: #0a0a18;
+      border: 1px solid rgba(170,120,255,0.22);
+      border-radius: 18px;
+      padding: 26px 28px 30px;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+      max-height: 92vh;
+      overflow-y: auto;
+    }
+    #mtModal h2 {
+      font-size: 1.5rem; font-weight: 900; letter-spacing: 0.08em;
+      background: linear-gradient(90deg, #5599ff, #cc55ff);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    #mtModal .mt-sub {
+      color: rgba(255,255,255,0.42); font-size: 0.82rem;
+      margin: 6px 0 20px; line-height: 1.5; max-width: 560px;
+    }
+    #mtClose {
+      position: absolute; top: 16px; right: 16px;
+      width: 32px; height: 32px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 8px; color: rgba(255,255,255,0.55);
+      font-size: 0.95rem; cursor: pointer; line-height: 1;
+    }
+    #mtClose:hover { background: rgba(255,255,255,0.13); color:#fff; }
+    .mt-body { display: flex; gap: 22px; }
+    .mt-list { display: flex; flex-direction: column; gap: 8px; width: 218px; flex: none; max-height: 64vh; overflow-y: auto; }
+    .mt-item {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      text-align: left; padding: 10px 12px;
+      background: rgba(255,255,255,0.035);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-left: 3px solid var(--c);
+      border-radius: 9px; cursor: pointer;
+      color: rgba(255,255,255,0.62);
+      font-size: 0.86rem; font-weight: 700;
+      transition: background 0.13s, color 0.13s, opacity 0.13s;
+    }
+    .mt-item small { display:block; font-size:0.62rem; font-weight:500; color:rgba(255,255,255,0.3); margin-top:2px; letter-spacing:0.04em; }
+    .mt-item:hover  { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.85); }
+    .mt-item.active { background: rgba(255,255,255,0.09); color:#fff; box-shadow: inset 0 0 0 1px var(--c); }
+    .mt-item.mt-off { opacity: 0.42; filter: grayscale(0.6); }
+    .mt-item-main { flex: 1; min-width: 0; }
+    .mt-tog {
+      flex: none; cursor: pointer;
+      padding: 4px 9px; border-radius: 6px;
+      font-size: 0.6rem; font-weight: 800; letter-spacing: 0.08em;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.16);
+      color: rgba(255,255,255,0.4);
+      transition: background 0.13s, color 0.13s, border-color 0.13s;
+    }
+    .mt-tog.on {
+      background: rgba(255,255,255,0.12);
+      background: color-mix(in srgb, var(--c) 26%, transparent);
+      border-color: var(--c);
+      color: var(--c);
+    }
+    .mt-tog-lg { padding: 9px 16px; font-size: 0.68rem; letter-spacing: 0.12em; }
+    @keyframes mt-shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-5px)} 40%,80%{transform:translateX(5px)} }
+    .mt-item.shake { animation: mt-shake 0.32s; }
+    .mt-detail { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+    .mt-detail-actions { display: flex; align-items: stretch; gap: 10px; margin-top: 2px; }
+    .mt-try {
+      flex: 1; cursor: pointer;
+      padding: 11px 16px; border-radius: 10px;
+      font-size: 0.82rem; font-weight: 800; letter-spacing: 0.06em;
+      color: #07140f;
+      background: var(--c);
+      background: linear-gradient(135deg, var(--c), color-mix(in srgb, var(--c) 60%, #ffffff));
+      border: none;
+      box-shadow: 0 4px 18px rgba(0,0,0,0.4);
+      box-shadow: 0 4px 18px color-mix(in srgb, var(--c) 40%, transparent);
+      transition: transform 0.1s, opacity 0.13s;
+    }
+    .mt-try:hover:not(:disabled) { transform: translateY(-1px); }
+    .mt-try:disabled { opacity: 0.34; cursor: not-allowed; box-shadow: none; }
+    .mt-detail-hint { font-size: 0.72rem; color: rgba(255,255,255,0.34); margin-top: -6px; }
+    .mt-detail-name  { font-size: 1.45rem; font-weight: 900; letter-spacing: 0.04em; color: var(--c); }
+    .mt-detail-blurb { font-size: 0.9rem; color: rgba(255,255,255,0.5); margin-top: -8px; }
+    .mt-detail-desc  { font-size: 0.86rem; line-height: 1.6; color: rgba(255,255,255,0.72); }
+    .mt-preview {
+      position: relative; height: 140px;
+      background: linear-gradient(180deg, #050510, #0d0d22);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      gap: 12px; overflow: hidden;
+    }
+    .mt-preview::after {
+      content: ''; position: absolute; left: 0; right: 0; bottom: 28px; height: 2px;
+      background: var(--c); opacity: 0.55; box-shadow: 0 0 14px var(--c);
+    }
+    .mt-preview .nchip {
+      width: 42px; height: 42px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 1rem; color: #0a0a18;
+      background: var(--c);
+      box-shadow: inset 0 14px 14px -10px rgba(255,255,255,0.65), 0 0 14px var(--c);
+    }
+    .mt-duo {
+      display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 10px;
+      background: rgba(255,102,204,0.12); border: 1px solid rgba(255,102,204,0.4);
+    }
+    .mt-plus { color: #ff66cc; font-weight: 900; font-size: 1.1rem; }
+    .mt-space {
+      min-width: 190px; height: 40px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 0.85rem; letter-spacing: 0.2em; color: #0a0a18;
+      background: linear-gradient(180deg, #e0c8ff, #cc88ff);
+      box-shadow: 0 0 16px rgba(204,136,255,0.6);
+    }
+    .mt-word {
+      padding: 12px 30px; border-radius: 8px;
+      font-weight: 900; font-size: 1.2rem; letter-spacing: 0.22em; color: #04121a;
+      background: linear-gradient(180deg, #aef0ff, #44ddff);
+      box-shadow: 0 0 18px rgba(68,221,255,0.6);
+    }
+    @media (max-width: 620px) {
+      .mt-body { flex-direction: column; }
+      .mt-list { width: auto; flex-direction: row; flex-wrap: wrap; }
+      .mt-list .mt-item { flex: 1 1 40%; }
+    }
   </style>
 </head>
 <body>
 
 <!-- ════════ CALIBRATION MODAL ════════ -->
-<div id="calOverlay">
+<div id="calOverlay">`
   <h2>Audio Calibration</h2>
   <p>Press <strong style="color:#fff">any key</strong> in time with the beat.<br>
      Tap along for several beats — the more consistent, the better.</p>
@@ -445,10 +595,23 @@
   <button id="calCancelBtn">Cancel</button>
 </div>
 
+<!-- ════════ MATRICKS — TRICKEYS TRICK GUIDE ════════ -->
+<div id="mtOverlay">
+  <div id="mtModal">
+    <button id="mtClose" aria-label="Close trick guide">✕</button>
+    <h2>MaTricks</h2>
+    <p class="mt-sub">In <strong style="color:rgba(255,255,255,0.7)">TricKeys</strong> mode the song is split into a random chain of “Tricks” — short runs in one style each. Here's every Trick you might face.</p>
+    <div class="mt-body">
+      <div class="mt-list" id="mtList"></div>
+      <div class="mt-detail" id="mtDetail"></div>
+    </div>
+  </div>
+</div>
+
 <!-- ════════ SETUP ════════ -->
 <div id="setupScreen">
-  <h1>Tympo</h1>
-  <p class="subtitle"><span class="brand-ty">TY</span>pe on te<span class="brand-mpo">MPO</span> — keystrokes on the beat</p>
+  <h1>TricKeys</h1>
+  <p class="subtitle">Keys are coming at you on beat. You decide how TricKey it gets</p>
 
   <div class="form-group" id="fgMusic">
     <label class="form-label">Music File</label>
@@ -504,6 +667,9 @@
         <div class="mc-name">TricKeys</div>
         <div class="mc-desc">Random chained "Tricks" — the style shifts every few measures</div>
       </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:9px">
+      <button type="button" id="matricksBtn" class="matricks-btn">◆ MaTricks <span class="mb-sub">— trick guide</span></button>
     </div>
   </div>
 
@@ -585,7 +751,7 @@
 
 const CW = 900, CH = 800;
 
-// ── Tympo (multi-lane) highway geometry ──────────────────
+// ── TricKeys (multi-lane) highway geometry ──────────────────
 const HWY_TOP    = 70;
 const HIT_ZONE_Y = 480;
 const HWY_H      = HIT_ZONE_Y - HWY_TOP;
@@ -602,7 +768,7 @@ const FL_TOP_W  = 120;   // highway width at vanishing point (narrow)
 const FL_BOT_W  = 420;   // highway width at hit zone
 const TRAIL_PX  = 80;    // fade-out zone directly below the hit line
 
-// ── Lane colors (Tympo) ────────────────────────────────
+// ── Lane colors (TricKeys) ────────────────────────────────
 const LANES = [
   { name: 'No Mod', short: 'None',  color: '#5599ff' },
   { name: 'Shift',  short: 'Shift', color: '#55ff99' },
@@ -813,6 +979,8 @@ let optShifty  = false; // some notes require Shift
 let optDouble  = false; // some notes are 2-key duos
 let optSpacey  = false; // a Space note sits on every offbeat
 let trickTimeline = []; // TricKeys only: [{ start, end, style }] for the trick-name panel
+let trialStyle    = null; // non-null = "Try this Trick" practice run of this style
+let trialEndMs    = 0;    // intrinsic-time cutoff for a trial run
 let streamAnchorMs = 0; // hitTime of the first stream note, used by beat indicator
 let difficulty = 'medium';   // 'easy' | 'medium' | 'hard' | 'expert'
 let notes        = [];
@@ -919,33 +1087,72 @@ function getStreamStepMs() {
 //   wordy      — emit word notes instead of single keys
 // Straight Keys = one composite style (from the menu toggles) for the whole
 // song. TricKeys = a chain of pure-style "Tricks" of 2–4 measures each.
-const TRICK_STYLES = ['straight', 'shifty', 'double', 'spacey', 'wordy'];
-const TRICK_WEIGHTS = { straight: 0.30, shifty: 0.25, double: 0.20, spacey: 0.15, wordy: 0.10 };
+const TRICK_STYLES = ['straight', 'shifty', 'double', 'spacey', 'wordy',
+                      'alphabetter', 'triplet', 'login', 'cutter'];
+const TRICK_WEIGHTS = {
+  straight: 0.20, shifty: 0.15, double: 0.13, spacey: 0.10, wordy: 0.10,
+  alphabetter: 0.09, triplet: 0.09, login: 0.07, cutter: 0.07,
+};
 
 // Display name, blurb, and accent color for each Trick style.
 const TRICK_INFO = {
-  straight: { name: 'Clean Run',      desc: 'Single keys, nothing fancy', color: '#55ff99' },
-  shifty:   { name: 'Shift Happens',  desc: 'Some keys need Shift',        color: '#ffaa44' },
-  double:   { name: 'Double Trouble', desc: 'Two keys at once',            color: '#ff66cc' },
-  spacey:   { name: 'Space Oddity',   desc: 'Space on every offbeat',      color: '#cc88ff' },
-  wordy:    { name: 'Word Up',        desc: 'Type the whole word',         color: '#44ddff' },
+  straight:    { name: 'Clean Run',          desc: 'Single keys, nothing fancy',  color: '#55ff99' },
+  shifty:      { name: 'Shift Happens',      desc: 'Some keys need Shift',         color: '#ffaa44' },
+  double:      { name: 'Double Trouble',     desc: 'Two keys at once',             color: '#ff66cc' },
+  spacey:      { name: 'Space Oddity',       desc: 'Space on every offbeat',       color: '#cc88ff' },
+  wordy:       { name: 'Word Up',            desc: 'Type the whole word',          color: '#44ddff' },
+  alphabetter: { name: 'Alphabetter',        desc: 'Type the alphabet in order',   color: '#f5c84b' },
+  triplet:     { name: 'Mot a Trois',        desc: 'Triplets — one key, ×3',       color: '#ff7a59' },
+  login:       { name: 'Login Odyssey 2026', desc: 'Enter the MFA codes',          color: '#5ce6b0' },
+  cutter:      { name: 'Crazy Cutter',       desc: 'Trace the keyboard loop',      color: '#aef24a' },
 };
+
+// Per-Trick on/off (toggled in the MaTricks popup). Always keep ≥1 enabled.
+const trickEnabled = Object.fromEntries(TRICK_STYLES.map(s => [s, true]));
+
+// Keyboard loops for Crazy Cutter — strings of (loosely) adjacent keys that
+// trace a closed-ish path the player must follow in order.
+const CUTTER_PATHS = [
+  'qwertyuioplmnbvcxzaq',
+  'poiuytrfvbnmklp',
+  '7654edcvbnmko987',
+  'asdfghjklpoiuytrewq',
+  '1qaz2wsx3edc4rfv5tgb',
+];
+
+// Alphabetter / Login Odyssey / Crazy Cutter are NOT beat-bound. Each is a
+// self-paced minigame: the player gets a fixed window of measures to type the
+// whole sequence as fast as possible, scored on how much time is left. Their
+// generators (`gen`) produce ONE challenge object per Trick instead of a note
+// stream. Mot a Trois (`triplet`) stays beat-bound.
+const CHALLENGE_GENS    = new Set(['alphabet', 'mfa', 'path']);
+const CHALLENGE_MEASURES = { alphabet: 4, mfa: 4, path: 3 };
+const GEN_STYLE         = { alphabet: 'alphabetter', mfa: 'login', path: 'cutter' };
+const SHIFT_SYMBOLS = {'!':'1','@':'2','#':'3','$':'4','%':'5','^':'6','&':'7','*':'8','(':'9',')':'0'};
 
 function styleParams(name) {
   const sp = DIFFICULTY_DEFS[difficulty].shiftPct;
+  const base = { shiftProb: 0, doubleProb: 0, spacey: false, wordy: false, gen: 'normal' };
   switch (name) {
-    case 'shifty': return { shiftProb: sp, doubleProb: 0, spacey: false, wordy: false };
-    case 'double': return { shiftProb: 0,  doubleProb: 1, spacey: false, wordy: false };
-    case 'spacey': return { shiftProb: 0,  doubleProb: 0, spacey: true,  wordy: false };
-    case 'wordy':  return { shiftProb: 0,  doubleProb: 0, spacey: false, wordy: true  };
-    default:       return { shiftProb: 0,  doubleProb: 0, spacey: false, wordy: false };
+    case 'shifty':      return { ...base, shiftProb: sp };
+    case 'double':      return { ...base, doubleProb: 1 };
+    case 'spacey':      return { ...base, spacey: true };
+    case 'wordy':       return { ...base, wordy: true };
+    case 'alphabetter': return { ...base, gen: 'alphabet' };
+    case 'triplet':     return { ...base, gen: 'triplet'  };
+    case 'login':       return { ...base, gen: 'mfa'      };
+    case 'cutter':      return { ...base, gen: 'path'     };
+    default:            return base;
   }
 }
 
 function pickTrickStyle() {
-  let r = Math.random();
-  for (const s of TRICK_STYLES) { r -= TRICK_WEIGHTS[s]; if (r <= 0) return s; }
-  return 'straight';
+  const pool  = TRICK_STYLES.filter(s => trickEnabled[s]);
+  const styles = pool.length ? pool : ['straight'];
+  const total = styles.reduce((a, s) => a + TRICK_WEIGHTS[s], 0);
+  let r = Math.random() * total;
+  for (const s of styles) { r -= TRICK_WEIGHTS[s]; if (r <= 0) return s; }
+  return styles[styles.length - 1];
 }
 
 function generateNotes() {
@@ -972,37 +1179,60 @@ function generateNotes() {
 
   streamAnchorMs = snappedLeadIn + offbeatShift;
 
+  // Measures a Trick of `style` occupies. Challenge Tricks get a fixed window
+  // sized to the task; beat-bound Tricks are 2–4 measures (8 for a trial).
+  function styleMeasures(style, isTrial) {
+    const g = styleParams(style).gen;
+    if (CHALLENGE_GENS.has(g)) return CHALLENGE_MEASURES[g];
+    return isTrial ? 8 : (2 + Math.floor(Math.random() * 3));
+  }
+
+  // A "Try this Trick" run is one fixed-length segment of the chosen style.
+  const endMs = trialStyle
+    ? Math.min(songEnd, streamAnchorMs + styleMeasures(trialStyle, true) * measureMs)
+    : songEnd;
+  if (trialStyle) {
+    trialEndMs = CHALLENGE_GENS.has(styleParams(trialStyle).gen)
+      ? endMs + 2400              // challenge: brief "complete/time" beat, then results
+      : endMs + TRAVEL_MS + 800;  // beat-bound: let the last notes resolve
+  }
+
   // Build the segment list
   const segments = [];
   trickTimeline = [];
-  if (mode === 'trickeys') {
+  if (trialStyle) {
+    segments.push({ start: streamAnchorMs, end: endMs, ...styleParams(trialStyle) });
+    trickTimeline.push({ start: streamAnchorMs, end: endMs, style: trialStyle });
+  } else if (mode === 'trickeys') {
     let s = streamAnchorMs;
-    while (s < songEnd) {
-      const measures = 2 + Math.floor(Math.random() * 3);  // 2–4 measures
-      const end = Math.min(songEnd, s + measures * measureMs);
+    while (s < endMs) {
       const st = pickTrickStyle();
-      segments.push({ end, ...styleParams(st) });
+      const end = Math.min(endMs, s + styleMeasures(st, false) * measureMs);
+      segments.push({ start: s, end, ...styleParams(st) });
       trickTimeline.push({ start: s, end, style: st });
       s = end;
     }
   } else {
     // Straight Keys — one composite segment from the menu toggles
     segments.push({
-      end: songEnd,
+      start: streamAnchorMs,
+      end: endMs,
       shiftProb:  optShifty ? shiftPct  : 0,
       doubleProb: optDouble ? doublePct : 0,
       spacey:     optSpacey,
       wordy:      false,
+      gen:        'normal',
     });
   }
 
   // Emit notes. `t` carries across segments so the grid stays continuous
   // (stepMs always divides measureMs, so segments stay measure-aligned).
   let t = streamAnchorMs;
+  const DIGITS = '0123456789';
   for (const seg of segments) {
     if (seg.wordy) {
       const wordStepMs = stepMs * 2; // gives time to type each word
-      while (t < seg.end && t < songEnd) {
+      while (t < seg.end && t < endMs) {
         const word = wordyNextWord();
         result.push({
           id: id++, word, letterIdx: 0, char: word[0],
@@ -1012,7 +1242,57 @@ function generateNotes() {
       }
       continue;
     }
-    while (t < seg.end && t < songEnd) {
+
+    // ── Timed challenges — ONE self-paced minigame for the whole
+    //    Trick window (Alphabetter / Login Odyssey / Crazy Cutter).
+    //    Not beat-bound: type the whole sequence as fast as possible
+    //    between seg.start and seg.end; scored on time remaining.
+    if (CHALLENGE_GENS.has(seg.gen)) {
+      let seq, extra = {};
+      if (seg.gen === 'alphabet') {
+        seq = 'abcdefghijklmnopqrstuvwxyz';
+      } else if (seg.gen === 'mfa') {
+        const codes = [];
+        for (let c = 0; c < 4; c++) {
+          let code = '';
+          for (let d = 0; d < 6; d++) code += DIGITS[Math.floor(Math.random() * 10)];
+          codes.push(code);
+        }
+        seq = codes.join(''); extra = { codes, codeLen: 6 };
+      } else { // path
+        const pathStr = CUTTER_PATHS[Math.floor(Math.random() * CUTTER_PATHS.length)];
+        seq = pathStr; extra = { pathStr };
+      }
+      result.push({
+        id: id++, challenge: true, kind: seg.gen,
+        startMs: seg.start, deadlineMs: seg.end,
+        seq, idx: 0, char: seq[0], state: 'active',
+        hitTime: seg.start, lane: 0, needsShift: false,
+        completedMs: null, bonus: 0, ...extra,
+      });
+      t = seg.end;          // keep the beat grid aligned for following Tricks
+      continue;
+    }
+
+    // ── Mot a Trois — one key, hit three times (triplet feel) ──
+    if (seg.gen === 'triplet') {
+      const third = stepMs / 3;
+      let grp = 0;
+      while (t < seg.end && t < endMs) {
+        const ch = pickKey();
+        for (let k = 0; k < 3; k++) {
+          const tt = t + k * third;
+          if (tt >= seg.end || tt >= endMs) break;
+          result.push({ id: id++, char: ch, lane: 0, hitTime: tt,
+            state: 'active', needsShift: false, kind: 'triplet', tripIdx: k, grp });
+        }
+        grp++;
+        t += stepMs;
+      }
+      continue;
+    }
+
+    while (t < seg.end && t < endMs) {
       let isDouble = false, needsShift = false;
       if (seg.doubleProb > 0 && Math.random() < seg.doubleProb) isDouble = true;
       else if (seg.shiftProb > 0 && Math.random() < seg.shiftProb) needsShift = true;
@@ -1031,7 +1311,7 @@ function generateNotes() {
 
       if (seg.spacey) {
         const spaceTime = t + stepMs / 2;
-        if (spaceTime < seg.end && spaceTime < songEnd)
+        if (spaceTime < seg.end && spaceTime < endMs)
           result.push({ id: id++, char: ' ', lane: 0, hitTime: spaceTime, state: 'active', needsShift: false });
       }
 
@@ -1145,6 +1425,21 @@ document.addEventListener('keydown', e => {
     return;
   }
 
+  // An active timed challenge owns ALL key input during its window
+  // (before powerups, words, duos — it's the only thing on the highway).
+  {
+    const cnow = audioEl.currentTime * 1000 + audioOffset;
+    if (activeChallenge(cnow)) {
+      if (e.key === ' ' || e.ctrlKey || e.altKey) return;
+      const ck = (e.shiftKey && SHIFT_SYMBOLS[e.key]) ? SHIFT_SYMBOLS[e.key] : e.key.toLowerCase();
+      if (!/^[a-z0-9]$/.test(ck)) return;
+      e.preventDefault();
+      keyPressMap[ck] = performance.now();
+      processChallengeKey(ck);
+      return;
+    }
+  }
+
   // Hacker Mode: any key hits the nearest note — bypass all other filters
   if (activePowerup?.type === 'hacker' && e.key !== 'Escape') {
     e.preventDefault();
@@ -1155,7 +1450,6 @@ document.addEventListener('keydown', e => {
 
   // Shift+number fires a symbol key (!, @, #…). Map it back to the base digit
   // (shift notes can appear in any game now, so always remap when Shift is held).
-  const SHIFT_SYMBOLS = {'!':'1','@':'2','#':'3','$':'4','%':'5','^':'6','&':'7','*':'8','(':'9',')':'0'};
   const key = (e.shiftKey && SHIFT_SYMBOLS[e.key])
     ? SHIFT_SYMBOLS[e.key]
     : e.key.toLowerCase();
@@ -1237,7 +1531,7 @@ function processHitFlat(char, shiftHeld) {
   } else {
     cands = notes.filter(n =>
       n.state === 'active' &&
-      !n.isDouble && !n.word &&        // duos/words have their own handlers
+      !n.isDouble && !n.word && !n.challenge &&  // duos/words/challenges: own handlers
       n.char === char &&
       n.needsShift === shiftHeld &&
       Math.abs(nowMs - n.hitTime) <= ow
@@ -1252,7 +1546,7 @@ function processHitFlat(char, shiftHeld) {
   const sx  = cands[0].char === ' ' ? CW/2 : flatNoteX(cands[0].char, FL_HIT_Y);
   spawnFx(sx, FL_HIT_Y - 22, cands[0].hitGrade, col);
   spawnParticles(sx, FL_HIT_Y, col, cands[0].hitGrade === 'Perfect' ? 18 : 11);
-  spawnPulse(sx, col);
+  spawnPulse();
   laneFlash[0] = 1.0;
 }
 
@@ -1311,7 +1605,7 @@ function processHitWordy(char) {
 
   spawnFx(CW / 2, FL_HIT_Y - 22, grade, '#44ddff');
   spawnParticles(CW / 2, FL_HIT_Y, '#44ddff', grade === 'Perfect' ? 14 : 8);
-  spawnPulse(CW / 2, '#44ddff');
+  spawnPulse();
   laneFlash[0] = 0.85;
 
   // Update note's char to the next letter (for keyboard glow)
@@ -1352,7 +1646,7 @@ function processHitDouble(char) {
     scoreNote(n, nowMs, pw, gw);
     spawnFx(CW / 2, FL_HIT_Y - 22, n.hitGrade, DCOL);
     spawnParticles(CW / 2, FL_HIT_Y, DCOL, n.hitGrade === 'Perfect' ? 18 : 11);
-    spawnPulse(CW / 2, DCOL);
+    spawnPulse();
     laneFlash[0] = 1.0;
   } else {
     // First of the pair — light partial feedback, no score yet
@@ -1361,7 +1655,7 @@ function processHitDouble(char) {
   }
 }
 
-// Tympo hit processing
+// TricKeys hit processing
 function processHitLane(lane, char) {
   const nowMs = audioEl.currentTime * 1000 + audioOffset;
   const { perfect:pw, good:gw, ok:ow } = hitWindows();
@@ -1413,7 +1707,7 @@ function autoScoreNote(note) {
   const sx = note.char === ' ' ? CW/2 : flatNoteX(note.char, FL_HIT_Y);
   spawnFx(sx, FL_HIT_Y - 22, 'Good', '#ff88cc');
   spawnParticles(sx, FL_HIT_Y, '#ff88cc', 10);
-  spawnPulse(sx, '#ff88cc');
+  spawnPulse();
   laneFlash[0] = 0.7;
 }
 
@@ -1426,9 +1720,81 @@ function activatePowerup(key) {
   spawnFx(CW/2, FL_HIT_Y - 100, def.icon + ' ' + def.label + '!', def.color);
 }
 
+// ── Timed-challenge minigames (Alphabetter / Login / Cutter) ──
+// The single active challenge whose self-paced window contains `nowMs`.
+function activeChallenge(nowMs) {
+  return notes.find(n => n.challenge && n.state === 'active' &&
+    nowMs >= n.startMs && nowMs <= n.deadlineMs) || null;
+}
+
+// One keystroke against the active challenge. Correct → advance + points;
+// finishing the sequence pays a speed bonus scaled by time remaining.
+function processChallengeKey(char) {
+  const nowMs = audioEl.currentTime * 1000 + audioOffset;
+  const ch = activeChallenge(nowMs);
+  if (!ch) return;
+  const col = TRICK_INFO[GEN_STYLE[ch.kind]].color;
+
+  if (char !== ch.seq[ch.idx]) {
+    spawnFx(CW / 2, FL_HIT_Y - 22, '✕', '#ff5577');   // wrong key — no penalty
+    return;
+  }
+
+  ch.idx++;
+  ch.char = ch.seq[ch.idx] || '';
+  perfects++;
+  combo++;
+  maxCombo = Math.max(maxCombo, combo);
+  let mult = multiplier();
+  if (activePowerup?.type === 'double') mult *= 2;
+  score += 20 * mult;
+  if (combo % 12 === 0 && powerupCharge === 0 && !activePowerup) {
+    powerupCharge = 1;
+    spawnFx(CW / 2, FL_HIT_Y - 80, '⬆ POWERUP READY', '#ffdd55');
+  }
+  spawnParticles(CW / 2, FL_HIT_Y - 60, col, 5);
+
+  if (ch.idx >= ch.seq.length) {
+    // Solved — pay out a speed bonus for the time left in the window.
+    ch.state = 'hit';
+    ch.completedMs = nowMs;
+    const frac = clamp((ch.deadlineMs - nowMs) / (ch.deadlineMs - ch.startMs), 0, 1);
+    ch.bonusFrac = frac;
+    ch.bonus = Math.round((400 + 1600 * frac)) * multiplier();
+    score += ch.bonus;
+    spawnFx(CW / 2, CH / 2 - 30, 'SOLVED  +' + ch.bonus, '#ffdd55');
+    spawnParticles(CW / 2, FL_HIT_Y - 80, col, 26);
+    spawnPulse();
+    if (trialStyle) trialEndMs = nowMs + 2000; // wrap the trial up shortly
+  }
+}
+
 function checkMisses(nowMs) {
   const { ok:ow } = hitWindows();
+  const cnow = audioEl.currentTime * 1000 + audioOffset;
+  const chal = activeChallenge(cnow);
   for (const n of notes) {
+    if (n.challenge) {
+      if (n.state === 'active') {
+        if (cnow > n.deadlineMs) {
+          n.state = 'missed';
+          const remaining = n.seq.length - n.idx;
+          misses += remaining;
+          combo = 0;
+          spawnFx(CW / 2, CH / 2 - 30, "TIME'S UP", '#ff5577');
+          if (trialStyle) trialEndMs = Math.min(trialEndMs, cnow + 1500);
+        }
+      }
+      continue;
+    }
+    // While a challenge owns the highway: the previous Trick's lingering
+    // boundary notes are neutralised (input is captured by the challenge, so
+    // they're neither hits nor misses); notes for the next Trick are just
+    // approaching and handled normally once the challenge ends.
+    if (chal) {
+      if (n.state === 'active' && n.hitTime < chal.startMs) n.state = 'gone';
+      continue;
+    }
     if (n.state !== 'active') continue;
     const dt = nowMs - n.hitTime;
 
@@ -1474,8 +1840,10 @@ function spawnFx(x, y, text, color) {
   hitFx.push({ x, y, text, color, opacity:1.0, vy:-1.6 });
 }
 
-function spawnPulse(x, color) {
-  hitPulses.push({ x, color, life:1 });
+// One shockwave above the whole hit line per clean hit (position/color are no
+// longer per-key — it spans the full line in the beat-indicator color).
+function spawnPulse() {
+  hitPulses.push({ life:1 });
 }
 
 function updateParticles() {
@@ -1501,6 +1869,7 @@ function updateLaneFlash() {
 function gameLoop() {
   if (gameState !== 'PLAYING') return;
   const nowMs = audioEl.currentTime * 1000;
+  if (trialStyle && trialEndMs && nowMs >= trialEndMs) { audioEl.pause(); showResults(); return; }
   if (activePowerup && nowMs > activePowerup.expiresAt) activePowerup = null;
   checkMisses(nowMs);
   updateParticles(); updateFx(); updateLaneFlash();
@@ -1540,6 +1909,7 @@ function drawFrame(nowMs) {
   drawKeyboard(nowMs);
   drawTrickPanel(nowMs);
   drawNextNote();
+  drawChallenge(nowMs);
   drawMultBar();
   drawPowerupOverlay(nowMs);
   drawHUD(nowMs);
@@ -1557,8 +1927,15 @@ function drawScanlines() {
 }
 
 function _modeColor() {
+  if (trialStyle) return TRICK_INFO[trialStyle].color;
   if (mode === 'trickeys') return '#33ddbb';
   return '#55ff99';
+}
+
+// The beat-indicator color (difficulty-driven). Single source of truth so the
+// hit-trail zone and hit pulse stay visually locked to the beat indicator.
+function _beatColor() {
+  return DIFFICULTY_DEFS[difficulty].color;
 }
 
 function _hexToRgba(hex, a) {
@@ -1569,7 +1946,7 @@ function _hexToRgba(hex, a) {
 // The Trick currently being played (or the first upcoming one before the song
 // starts). Returns null outside TricKeys.
 function currentTrick(nowMs) {
-  if (mode !== 'trickeys' || !trickTimeline.length) return null;
+  if ((mode !== 'trickeys' && !trialStyle) || !trickTimeline.length) return null;
   for (const seg of trickTimeline) if (nowMs < seg.end) return seg;
   return trickTimeline[trickTimeline.length - 1];
 }
@@ -1635,7 +2012,7 @@ function drawTrickPanel(nowMs) {
 }
 
 // ═══════════════════════════════════════════════════════════
-//  RENDERING — Tympo highway
+//  RENDERING — TricKeys highway
 // ═══════════════════════════════════════════════════════════
 
 function hBounds(y) {
@@ -1853,8 +2230,15 @@ function flatNoteY(hitTime, nowMs) {
 // into the trail zone instead of vanishing the instant it crosses the line).
 function isPlainNote(n) { return !n.word && !n.isDouble && n.char !== ' '; }
 
+// Accent color for a single-key note — scripted Tricks take their Trick color.
+function noteAccent(n) {
+  if (n.kind === 'triplet') return TRICK_INFO.triplet.color;  // Mot a Trois
+  return n.needsShift ? '#ffaa44' : '#55ff99';
+}
+
 function drawFlatNotes(nowMs) {
   const visible = notes.filter(n => {
+    if (n.challenge) return false;   // timed challenges draw their own overlay
     const sy = flatNoteY(n.hitTime, nowMs);
     if (n.word) return n.state === 'active' && sy > FL_TOP - 50;
     if (n.state === 'active')
@@ -2049,10 +2433,21 @@ function drawFlatNote(note, sy, alpha = 1) {
   const w  = 16 + 24 * depth;
   const h  = 12 + 28 * depth;
   const r  = 2 + 7 * depth;
-  const col = note.needsShift ? '#ffaa44' : '#55ff99';
+  const col = noteAccent(note);
 
   ctx.save();
   ctx.globalAlpha = alpha;
+
+  // Mot a Trois: three pips above the bubble, the current beat-of-3 lit.
+  if (note.kind === 'triplet' && depth > 0.25) {
+    const pr = 1.6 + depth * 1.8, gap = pr * 2.6;
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath();
+      ctx.arc(cx + (i - 1) * gap, sy - h / 2 - pr - 4, pr, 0, Math.PI * 2);
+      ctx.fillStyle = i === note.tripIdx ? col : _hexToRgba(col, 0.28);
+      ctx.fill();
+    }
+  }
   const grad = ctx.createLinearGradient(0, sy - h/2, 0, sy + h/2);
   grad.addColorStop(0, lighten(col, 0.45));
   grad.addColorStop(1, darken(col, 0.45));
@@ -2101,7 +2496,7 @@ function drawFlatHitZone() {
 // dissolve into it rather than hard-cut. Drawn under the falling notes.
 function drawHitTrailZone() {
   const { sx, w } = flatHBounds(FL_HIT_Y);
-  const col = _modeColor();
+  const col = _beatColor();
 
   ctx.save();
   const g = ctx.createLinearGradient(0, FL_HIT_Y, 0, FL_HIT_Y + TRAIL_PX);
@@ -2127,49 +2522,57 @@ function drawHitTrailZone() {
   ctx.restore();
 }
 
-// Upward shockwave on a clean hit: a rising tapered beam, a lifting ring,
-// and a brief white core flash at the point of impact.
+// Upward shockwave on a clean hit: a sheet of light rising off the *entire*
+// hit line plus a bright crest that lifts and fades. Beat-indicator colored,
+// following the highway taper so it stays inside the lane.
 function drawHitPulses() {
+  if (!hitPulses.length) return;
+  const col = _beatColor();
   for (const p of hitPulses) {
     const e = 1 - p.life;            // 0 → 1 progress
 
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
 
-    // Rising beam shooting up off the hit line
-    const beamH = 70 + 90 * e;
-    const beamW = 26 * (1 - e * 0.5);
-    const topY  = FL_HIT_Y - beamH;
-    const bg = ctx.createLinearGradient(0, FL_HIT_Y, 0, topY);
-    bg.addColorStop(0,    _hexToRgba(p.color, 0));
-    bg.addColorStop(0.18, _hexToRgba(p.color, 0.45 * p.life));
-    bg.addColorStop(1,    _hexToRgba(p.color, 0));
-    ctx.fillStyle = bg;
+    // Sheet of light rising off the whole hit line
+    const sheetH = 60 + 80 * e;
+    const topY   = FL_HIT_Y - sheetH;
+    const b0 = flatHBounds(FL_HIT_Y);
+    const b1 = flatHBounds(topY);
+    const sg = ctx.createLinearGradient(0, FL_HIT_Y, 0, topY);
+    sg.addColorStop(0,    _hexToRgba(col, 0));
+    sg.addColorStop(0.15, _hexToRgba(col, 0.34 * p.life));
+    sg.addColorStop(1,    _hexToRgba(col, 0));
+    ctx.fillStyle = sg;
     ctx.beginPath();
-    ctx.moveTo(p.x - beamW/2,    FL_HIT_Y);
-    ctx.lineTo(p.x + beamW/2,    FL_HIT_Y);
-    ctx.lineTo(p.x + beamW*0.18, topY);
-    ctx.lineTo(p.x - beamW*0.18, topY);
+    ctx.moveTo(b0.sx,        FL_HIT_Y);
+    ctx.lineTo(b0.sx + b0.w, FL_HIT_Y);
+    ctx.lineTo(b1.sx + b1.w, topY);
+    ctx.lineTo(b1.sx,        topY);
     ctx.closePath();
     ctx.fill();
 
-    // Expanding ring that lifts off the line
-    const rad = 8 + 46 * e;
-    const ry  = FL_HIT_Y - 22 * e;
-    ctx.strokeStyle = _hexToRgba(p.color, 0.7 * p.life);
-    ctx.lineWidth   = 2.5 * p.life + 0.5;
-    ctx.shadowColor = p.color;
-    ctx.shadowBlur  = 14 * p.life;
+    // Bright crest spanning the line, lifting off it as it fades
+    const crestY = FL_HIT_Y - 30 * e;
+    const bc = flatHBounds(crestY);
+    ctx.strokeStyle = _hexToRgba(col, 0.75 * p.life);
+    ctx.lineWidth   = 3 * p.life + 0.5;
+    ctx.shadowColor = col;
+    ctx.shadowBlur  = 16 * p.life;
     ctx.beginPath();
-    ctx.ellipse(p.x, ry, rad, rad * 0.55, 0, 0, Math.PI * 2);
+    ctx.moveTo(bc.sx,         crestY);
+    ctx.lineTo(bc.sx + bc.w,  crestY);
     ctx.stroke();
 
-    // Bright impact core, only at the very start
+    // White flash along the hit line at the very start
     if (p.life > 0.55) {
-      ctx.fillStyle = _hexToRgba('#ffffff', (p.life - 0.55) * 1.6);
+      ctx.strokeStyle = _hexToRgba('#ffffff', (p.life - 0.55) * 1.4);
+      ctx.lineWidth   = 2;
+      ctx.shadowBlur  = 10;
       ctx.beginPath();
-      ctx.ellipse(p.x, FL_HIT_Y, 10, 6, 0, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.moveTo(b0.sx,        FL_HIT_Y);
+      ctx.lineTo(b0.sx + b0.w, FL_HIT_Y);
+      ctx.stroke();
     }
     ctx.restore();
   }
@@ -2392,6 +2795,178 @@ function drawWordyPreview() {
   ctx.restore();
 }
 
+// ─── Timed-challenge overlay (in focus on the highway) ───────
+
+// The challenge whose self-paced window contains `now` (any state, so the
+// solved/failed banner stays up until the Trick window ends).
+function challengeInWindow(now) {
+  return notes.find(n => n.challenge && now >= n.startMs && now <= n.deadlineMs) || null;
+}
+
+// Big focused panel over the highway for the active timed minigame.
+function drawChallenge(nowMs) {
+  const ch = challengeInWindow(nowMs);
+  if (!ch) return;
+  const col   = TRICK_INFO[GEN_STYLE[ch.kind]].color;
+  const info  = TRICK_INFO[GEN_STYLE[ch.kind]];
+  const solved = ch.state === 'hit', failed = ch.state === 'missed';
+  const frac  = clamp((ch.deadlineMs - nowMs) / (ch.deadlineMs - ch.startMs), 0, 1);
+  const total = ch.seq.length;
+
+  const PW = 660, PH = 392;
+  const PX = CW / 2 - PW / 2, PY = FL_TOP + 46;
+
+  ctx.save();
+  // Dim the highway behind, then the focused panel.
+  ctx.fillStyle = 'rgba(3,3,12,0.78)';
+  rrect(ctx, PX - 10, PY - 10, PW + 20, PH + 20, 22); ctx.fill();
+  ctx.shadowColor = col; ctx.shadowBlur = 26;
+  ctx.fillStyle = 'rgba(10,12,24,0.96)';
+  rrect(ctx, PX, PY, PW, PH, 18); ctx.fill();
+  ctx.strokeStyle = _hexToRgba(col, 0.7); ctx.lineWidth = 2;
+  rrect(ctx, PX, PY, PW, PH, 18); ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Header
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  ctx.font = 'bold 26px monospace';
+  ctx.fillStyle = col; ctx.shadowColor = col; ctx.shadowBlur = 12;
+  ctx.fillText(info.name, CW / 2, PY + 38);
+  ctx.shadowBlur = 0;
+  ctx.font = '12px monospace'; ctx.fillStyle = 'rgba(255,255,255,0.45)';
+  ctx.fillText(solved ? 'SOLVED' : failed ? 'OUT OF TIME' : 'TYPE IT — AS FAST AS YOU CAN', CW / 2, PY + 58);
+
+  // Timer bar
+  const tbX = PX + 40, tbW = PW - 80, tbY = PY + 72, tbH = 12;
+  const tCol = solved ? '#ffdd55' : failed ? '#ff5577'
+    : frac > 0.4 ? col : frac > 0.2 ? '#ffaa44' : '#ff5577';
+  ctx.fillStyle = 'rgba(255,255,255,0.07)';
+  rrect(ctx, tbX, tbY, tbW, tbH, 6); ctx.fill();
+  const shownFrac = solved ? (ch.bonusFrac ?? frac) : frac;
+  if (shownFrac > 0.001) {
+    ctx.fillStyle = tCol; ctx.shadowColor = tCol; ctx.shadowBlur = 10;
+    rrect(ctx, tbX, tbY, Math.max(4, tbW * shownFrac), tbH, 6); ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+
+  // ── Body, per kind ──────────────────────────────────────────
+  if (ch.kind === 'alphabet') {
+    const cols = 13, rows = 2, cw = 42, chh = 50, gx = 4, gy = 12;
+    const gridW = cols * cw + (cols - 1) * gx;
+    const gx0 = CW / 2 - gridW / 2, gy0 = PY + 110;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (let i = 0; i < 26; i++) {
+      const r = Math.floor(i / cols), c = i % cols;
+      const x = gx0 + c * (cw + gx), y = gy0 + r * (chh + gy);
+      const done = i < ch.idx, isCur = i === ch.idx && !solved && !failed;
+      if (isCur) {
+        ctx.fillStyle = col; ctx.shadowColor = col; ctx.shadowBlur = 16;
+        rrect(ctx, x, y, cw, chh, 7); ctx.fill(); ctx.shadowBlur = 0;
+        ctx.fillStyle = '#0a0a18'; ctx.font = 'bold 26px monospace';
+      } else if (done) {
+        ctx.fillStyle = _hexToRgba(col, 0.16);
+        rrect(ctx, x, y, cw, chh, 7); ctx.fill();
+        ctx.fillStyle = _hexToRgba(col, 0.5); ctx.font = '600 22px monospace';
+      } else {
+        ctx.strokeStyle = _hexToRgba(col, 0.3); ctx.lineWidth = 1;
+        rrect(ctx, x, y, cw, chh, 7); ctx.stroke();
+        ctx.fillStyle = _hexToRgba(col, 0.8); ctx.font = 'bold 22px monospace';
+      }
+      ctx.fillText(String.fromCharCode(65 + i), x + cw / 2, y + chh / 2 + 1);
+    }
+  } else if (ch.kind === 'mfa') {
+    const codes = ch.codes, L = ch.codeLen;
+    const curCode = Math.floor(ch.idx / L), curPos = ch.idx % L;
+    const dw = 50, dgap = 10, dh = 44, rowGap = 16;
+    const rowW = L * dw + (L - 1) * dgap + 86;
+    const rx0 = CW / 2 - rowW / 2;
+    ctx.textBaseline = 'middle';
+    for (let k = 0; k < codes.length; k++) {
+      const ry = PY + 104 + k * (dh + rowGap);
+      const codeDone = k < curCode || solved;
+      ctx.textAlign = 'left'; ctx.font = 'bold 13px monospace';
+      ctx.fillStyle = codeDone ? '#55ff99' : (k === curCode ? col : 'rgba(255,255,255,0.3)');
+      ctx.fillText(codeDone ? '✓ CODE' : 'CODE ' + (k + 1), rx0, ry + dh / 2);
+      const dsx = rx0 + 80;
+      for (let p = 0; p < L; p++) {
+        const x = dsx + p * (dw + dgap);
+        const typed = k < curCode || solved || (k === curCode && p < curPos);
+        const isNext = k === curCode && p === curPos && !solved && !failed;
+        ctx.fillStyle = typed ? _hexToRgba('#55ff99', 0.22) : 'rgba(255,255,255,0.05)';
+        if (isNext) { ctx.shadowColor = col; ctx.shadowBlur = 12; }
+        rrect(ctx, x, ry, dw, dh, 8); ctx.fill(); ctx.shadowBlur = 0;
+        ctx.strokeStyle = isNext ? col : typed ? _hexToRgba('#55ff99', 0.5) : _hexToRgba(col, 0.25);
+        ctx.lineWidth = isNext ? 2.5 : 1;
+        rrect(ctx, x, ry, dw, dh, 8); ctx.stroke();
+        ctx.textAlign = 'center'; ctx.font = 'bold 24px monospace';
+        ctx.fillStyle = typed ? '#dfffe9' : isNext ? '#fff' : _hexToRgba(col, 0.7);
+        ctx.fillText(codes[k][p], x + dw / 2, ry + dh / 2 + 1);
+        ctx.textAlign = 'left';
+      }
+    }
+  } else { // path — big keyboard with the loop + tracer
+    const pstr = ch.seq, curIdx = Math.min(ch.idx, pstr.length - 1);
+    const kw = 40, kh = 34, gxx = 6, gyy = 6;
+    const originX = CW / 2 - ((kw + gxx) * 10) / 2 + kw / 2;
+    const originY = PY + 116;
+    const pos = {};
+    KB_ROWS.forEach((row, r) => row.chars.forEach((cch, c) => {
+      pos[cch] = { x: originX + (c + row.stagger) * (kw + gxx),
+                   y: originY + r * (kh + gyy) };
+    }));
+    KB_ROWS.forEach((row) => row.chars.forEach((cch) => {
+      const p = pos[cch], inPath = pstr.includes(cch);
+      ctx.fillStyle = inPath ? _hexToRgba(col, 0.12) : 'rgba(255,255,255,0.035)';
+      rrect(ctx, p.x - kw / 2, p.y - kh / 2, kw, kh, 5); ctx.fill();
+    }));
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    for (let i = 0; i < pstr.length - 1; i++) {
+      const a = pos[pstr[i]], b = pos[pstr[i + 1]];
+      if (!a || !b) continue;
+      const passed = i < curIdx || solved;
+      ctx.strokeStyle = passed ? _hexToRgba(col, 0.9) : _hexToRgba(col, 0.22);
+      ctx.lineWidth = passed ? 4 : 2.5;
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    }
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    KB_ROWS.forEach((row) => row.chars.forEach((cch) => {
+      if (!solved && !failed && cch === pstr[curIdx]) return;
+      const p = pos[cch];
+      ctx.font = '13px monospace';
+      ctx.fillStyle = pstr.includes(cch) ? _hexToRgba(col, 0.7) : 'rgba(255,255,255,0.16)';
+      ctx.fillText(cch.toUpperCase(), p.x, p.y);
+    }));
+    if (!solved && !failed) {
+      const tp = pos[pstr[curIdx]];
+      if (tp) {
+        ctx.fillStyle = col; ctx.shadowColor = col; ctx.shadowBlur = 16;
+        ctx.beginPath(); ctx.arc(tp.x, tp.y, kh * 0.62, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#0a0a18'; ctx.font = 'bold 18px monospace';
+        ctx.fillText(pstr[curIdx].toUpperCase(), tp.x, tp.y);
+      }
+    }
+  }
+
+  // Footer — progress / payout
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  if (solved) {
+    ctx.font = 'bold 22px monospace';
+    ctx.fillStyle = '#ffdd55'; ctx.shadowColor = '#ffdd55'; ctx.shadowBlur = 14;
+    ctx.fillText('SOLVED  ·  +' + ch.bonus + ' speed bonus', CW / 2, PY + PH - 26);
+    ctx.shadowBlur = 0;
+  } else if (failed) {
+    ctx.font = 'bold 22px monospace';
+    ctx.fillStyle = '#ff5577';
+    ctx.fillText('TIME — ' + (total - ch.idx) + ' left unsolved', CW / 2, PY + PH - 26);
+  } else {
+    ctx.font = 'bold 16px monospace';
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.fillText(ch.idx + ' / ' + total + '  ·  faster = bigger bonus', CW / 2, PY + PH - 26);
+  }
+  ctx.restore();
+}
+
 // ─── Next-note display ───────────────────────────────────────
 
 function drawNextNote() {
@@ -2404,7 +2979,10 @@ function drawNextNote() {
     now >= n.hitTime - ow);
   if (wordHere) { drawWordyPreview(); return; }
 
-  const upcoming = notes.filter(n => n.state === 'active').slice(0, 5);
+  // A timed challenge owns the highway — its overlay replaces the box.
+  if (challengeInWindow(now)) return;
+
+  const upcoming = notes.filter(n => n.state === 'active' && !n.challenge).slice(0, 5);
   if (!upcoming.length) return;
 
   const first = upcoming[0];
@@ -2412,7 +2990,7 @@ function drawNextNote() {
   const noteColor = (n) => n.word ? '#44ddff'
     : n.isDouble ? '#ff66cc'
     : n.char === ' ' ? '#cc88ff'
-    : (n.needsShift ? '#ffaa44' : '#55ff99');
+    : noteAccent(n);
   const noteLabel = (n) => n.word ? (n.word.length > 5 ? n.word.slice(0,4).toUpperCase()+'…' : n.word.toUpperCase())
     : n.isDouble ? (n.char.toUpperCase() + '+' + n.char2.toUpperCase())
     : n.char === ' ' ? '␣'
@@ -2711,7 +3289,7 @@ function drawBeatIndicator(nowMs) {
   const pulse  = clamp(1 - phase / (stepMs * 0.3), 0, 1);
 
   const cx = 210, cy = FL_HIT_Y;
-  const col = DIFFICULTY_DEFS[difficulty].color;
+  const col = _beatColor();
 
   ctx.save();
   if (pulse < 1 && pulse > 0) {
@@ -2936,6 +3514,7 @@ function stopGame() {
   if (rafId) { cancelAnimationFrame(rafId); rafId=null; }
   if (audioEl) audioEl.pause();
   gameState='SETUP';
+  trialStyle = null; trialEndMs = 0;
   document.getElementById('pauseOverlay').style.display='none';
 }
 
@@ -2951,12 +3530,13 @@ function showResults() {
   const perfectPct=tot>0?(perfects/tot)*100:0;
   const grade=acc>=95?'S':acc>=85?'A':acc>=70?'B':acc>=60?'C':acc>=50?'D':'F';
   const gc={S:'#ffdd55',A:'#55ff99',B:'#5599ff',C:'#ffaa44',D:'#cc55ff',F:'#ff5577'};
-  const modeName=mode==='trickeys'?'TricKeys':'Straight Keys';
+  const modeName=trialStyle?`Trick Trial · ${TRICK_INFO[trialStyle].name}`
+    :mode==='trickeys'?'TricKeys':'Straight Keys';
 
-  // High score (keyed by songTitle + mode + difficulty)
+  // High score (keyed by songTitle + mode + difficulty). Trials don't count.
   const hsKey=`hs:${songTitle||''}:${mode}:${difficulty}`;
   const prev=parseInt(localStorage.getItem(hsKey)||'0',10);
-  const isNew=score>prev;
+  const isNew=!trialStyle && score>prev;
   if(isNew) localStorage.setItem(hsKey,score);
 
   document.getElementById('resNew').classList.toggle('show',isNew);
@@ -3030,7 +3610,7 @@ function showScreen(name) {
   document.getElementById('gameScreen').style.display  = name==='game'  ? 'block' : 'none';
   document.getElementById('resultsScreen').classList.toggle('visible', name==='results');
   if (name === 'game')    fitCanvas();
-  if (name === 'setup')   { menuSection = 0; updateMenuFocus(); }
+  if (name === 'setup')   { trialStyle = null; trialEndMs = 0; menuSection = 0; updateMenuFocus(); }
   if (name === 'results') { resultsFocusIdx = 0; updateResultsFocus(); }
 }
 
@@ -3113,6 +3693,141 @@ function updateResultsFocus() {
 document.querySelectorAll('.mode-card').forEach((card, idx) => {
   card.addEventListener('click', () => { menuSection = 5; applyMenuMode(idx); });
 });
+
+// ── MaTricks: TricKeys trick-guide popup ────────────────────
+// Reuses TRICK_INFO (name / blurb / accent color) as the single source of
+// truth; only the longer description and a CSS preview live here.
+const MATRICKS = [
+  { key:'straight',    long:'A steady stream of single keys at the difficulty’s interval — no modifiers, just press the key shown. This is the baseline every other Trick is built on.' },
+  { key:'shifty',      long:'A per-difficulty fraction of notes glow orange and must be played with Shift held. Shifted digits resolve to their base key (so “!” still counts as “1”); Space is never Shift-modified.' },
+  { key:'double',      long:'Every note is a duo of two distinct keys joined by a glowing connector. Press both within the hit window — order doesn’t matter — and the pair scores as a single combo unit.' },
+  { key:'spacey',      long:'A wide purple Space bar lands on every offbeat, sitting between the regular letter notes. Hit the key on the beat and Space on the “and”.' },
+  { key:'wordy',       long:'Whole words fall as cyan banners and are typed letter-by-letter. The grade is locked in on the first letter; finish the word before its deadline for a completion bonus.' },
+  { key:'alphabetter', long:'Single keys, but they spell the alphabet — A, B, C … Z, then it wraps and keeps going. The strip below the highway tracks the letter you’re on. Pure muscle-memory order.' },
+  { key:'triplet',     long:'The grid switches to triplets: one key, struck three times in fast succession, before the next key arrives. Three pips over each note count the beat-of-three. (“Mot a Trois” — a word, in threes.)' },
+  { key:'login',       long:'Authenticator hell. Enter a run of random 6-digit MFA codes, digit by digit, before each one ages out. The card below the highway shows the active code and your progress through it.' },
+  { key:'cutter',      long:'Trace a continuous loop across the keyboard — a string of neighbouring keys that closes back on itself, à la Mario Party’s Crazy Cutter. The mini-keyboard shows the route and a tracer on the next key.' },
+];
+
+function mtPreview(key) {
+  const C = TRICK_INFO[key].color;
+  switch (key) {
+    case 'straight':    return `<span class="nchip" style="--c:#55ff99">F</span><span class="nchip" style="--c:#55ff99">G</span><span class="nchip" style="--c:#55ff99">J</span>`;
+    case 'shifty':      return `<span class="nchip" style="--c:#55ff99">A</span><span class="nchip" style="--c:#ffaa44">⇧S</span><span class="nchip" style="--c:#55ff99">D</span>`;
+    case 'double':      return `<span class="nchip" style="--c:#55ff99">G</span><div class="mt-duo"><span class="nchip" style="--c:#ff66cc">J</span><span class="mt-plus">+</span><span class="nchip" style="--c:#ff66cc">K</span></div>`;
+    case 'spacey':      return `<span class="nchip" style="--c:#55ff99">H</span><div class="mt-space">␣ SPACE</div><span class="nchip" style="--c:#55ff99">L</span>`;
+    case 'wordy':       return `<div class="mt-word">RHYTHM</div>`;
+    case 'alphabetter': return `<span class="nchip" style="--c:${C}">A</span><span class="nchip" style="--c:${C}">B</span><span class="nchip" style="--c:${C}">C</span><span class="mt-plus" style="color:${C}">→</span><span class="nchip" style="--c:${C};opacity:0.4">Z</span>`;
+    case 'triplet':     return `<div class="mt-duo" style="background:${C}1f;border-color:${C}66"><span class="nchip" style="--c:${C}">K</span><span class="nchip" style="--c:${C}">K</span><span class="nchip" style="--c:${C}">K</span></div>`;
+    case 'login':       return `<div class="mt-word" style="background:linear-gradient(180deg,#d6f7ea,${C});letter-spacing:0.32em;font-size:1.05rem">4 7 2 9 1 5</div>`;
+    case 'cutter':      return `<span class="nchip" style="--c:${C}">Q</span><span class="nchip" style="--c:${C}">W</span><span class="nchip" style="--c:${C}">E</span><span class="mt-plus" style="color:${C}">↘</span><span class="nchip" style="--c:${C}">S</span>`;
+  }
+  return '';
+}
+
+const mtListEl    = document.getElementById('mtList');
+const mtDetailEl  = document.getElementById('mtDetail');
+const mtOverlayEl = document.getElementById('mtOverlay');
+let mtActive = MATRICKS[0].key;
+
+// Sync per-item active highlight + on/off appearance.
+function mtSyncList() {
+  [...mtListEl.children].forEach(it => {
+    const k = it.dataset.key, on = trickEnabled[k];
+    it.classList.toggle('active', k === mtActive);
+    it.classList.toggle('mt-off', !on);
+    const tog = it.querySelector('.mt-tog');
+    tog.textContent = on ? 'ON' : 'OFF';
+    tog.classList.toggle('on', on);
+  });
+}
+
+// Flip a Trick in/out of the random rotation. Always keep ≥1 enabled.
+function mtToggle(key) {
+  if (trickEnabled[key]) {
+    if (TRICK_STYLES.filter(s => trickEnabled[s]).length <= 1) {
+      const el = mtListEl.querySelector(`[data-key="${key}"]`);
+      if (el) { el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
+      return;
+    }
+    trickEnabled[key] = false;
+  } else {
+    trickEnabled[key] = true;
+  }
+  mtSyncList();
+  if (key === mtActive) mtRenderDetail();
+}
+
+function mtRenderDetail() {
+  const info = TRICK_INFO[mtActive];
+  const row  = MATRICKS.find(m => m.key === mtActive);
+  const on   = trickEnabled[mtActive];
+  const audioReady = !!audioEl && !document.getElementById('startBtn').disabled;
+  mtDetailEl.style.setProperty('--c', info.color);
+  mtDetailEl.innerHTML =
+    `<div class="mt-detail-name">${info.name}</div>` +
+    `<div class="mt-detail-blurb">${info.desc}</div>` +
+    `<div class="mt-preview" style="--c:${info.color}">${mtPreview(mtActive)}</div>` +
+    `<div class="mt-detail-desc">${row.long}</div>` +
+    `<div class="mt-detail-actions">` +
+      `<button type="button" class="mt-try" id="mtTryBtn"${audioReady ? '' : ' disabled'}>▶ Try this Trick</button>` +
+      `<button type="button" class="mt-tog mt-tog-lg${on ? ' on' : ''}" id="mtEnableBtn">${on ? 'IN ROTATION' : 'EXCLUDED'}</button>` +
+    `</div>` +
+    `<div class="mt-detail-hint">${audioReady ? 'Uses your current Main Menu settings (song, BPM, difficulty).' : 'Load a music file in the Main Menu to enable Try.'}</div>`;
+  mtDetailEl.querySelector('#mtTryBtn').addEventListener('click', () => { if (audioReady) startTrial(mtActive); });
+  mtDetailEl.querySelector('#mtEnableBtn').addEventListener('click', () => mtToggle(mtActive));
+  mtSyncList();
+}
+
+MATRICKS.forEach(m => {
+  const info = TRICK_INFO[m.key];
+  const it = document.createElement('div');
+  it.className = 'mt-item' + (m.key === mtActive ? ' active' : '');
+  it.dataset.key = m.key;
+  it.style.setProperty('--c', info.color);
+  it.innerHTML = `<span class="mt-item-main">${info.name}<small>${m.key}</small></span>` +
+                 `<button type="button" class="mt-tog" aria-label="toggle in rotation">ON</button>`;
+  it.addEventListener('click', () => { mtActive = m.key; mtRenderDetail(); });
+  it.querySelector('.mt-tog').addEventListener('click', e => { e.stopPropagation(); mtToggle(m.key); });
+  mtListEl.appendChild(it);
+});
+mtRenderDetail();
+
+// Launch an 8-measure practice run of one Trick with the current settings.
+function startTrial(style) {
+  if (!audioEl || document.getElementById('startBtn').disabled) return;
+  bpm = parseInt(document.getElementById('bpmInput').value) || 120;
+  targetBpm = parseInt(document.getElementById('targetBpmInput').value) || bpm;
+  trialStyle = style;
+  mtClose();
+  beginGame();
+}
+
+function mtIsOpen() { const d = mtOverlayEl.style.display; return d !== 'none' && d !== ''; }
+function mtOpen()   { mtRenderDetail(); mtOverlayEl.style.display = 'flex'; }
+function mtClose()  { mtOverlayEl.style.display = 'none'; }
+
+document.getElementById('matricksBtn').addEventListener('click', mtOpen);
+document.getElementById('mtClose').addEventListener('click', mtClose);
+mtOverlayEl.addEventListener('click', e => { if (e.target === mtOverlayEl) mtClose(); });
+
+// Capture phase: while the guide is open, keep Escape / nav keys from reaching
+// the setup-screen handler behind it.
+document.addEventListener('keydown', e => {
+  if (!mtIsOpen()) return;
+  if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); mtClose(); return; }
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+    e.preventDefault(); e.stopImmediatePropagation();
+    const i   = MATRICKS.findIndex(m => m.key === mtActive);
+    const fwd = (e.key === 'ArrowDown' || e.key === 'ArrowRight');
+    mtActive  = MATRICKS[(fwd ? i + 1 : i - 1 + MATRICKS.length) % MATRICKS.length].key;
+    mtRenderDetail();
+    return;
+  }
+  // Swallow the rest so the menu doesn't react behind the popup (Enter/Space
+  // on a focused button still activates it — default action isn't prevented).
+  e.stopImmediatePropagation();
+}, true);
 
 // File picker
 document.getElementById('musicFile').addEventListener('change', e => {
