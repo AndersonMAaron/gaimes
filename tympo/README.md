@@ -10,7 +10,7 @@ There are **two modes**. Both share the same foundation (a continuous, beat-lock
 
 | Mode | Description |
 |------|-------------|
-| **Straight Keys** | A steady stream of random alphanumeric keys at the difficulty's interval. Three independent, **combinable** options in the menu shape it: **Shifty**, **Double**, **Spacey** (see below). With all options off it is plain single keys. |
+| **Straight Keys** | A steady stream of random alphanumeric keys at the difficulty's interval. Three independent, **combinable** modifiers — **Shifty**, **Double**, **Spacey** (see below) — shape it, toggled in the **TricKifiers** popup (button under the Straight Keys mode card). With all off it is plain single keys. |
 | **TricKeys** | Same foundation, but the song is split into a random chain of **Tricks** — runs of **2–4 measures** (1 measure = 4 beats), each in one randomly-chosen *pure* style. No extra options; the Straight Keys toggles are ignored here. |
 
 ### Styles / Straight Keys options
@@ -264,6 +264,12 @@ A small **MaTricks** button (a pun on *Matrix* / *"ma tricks"*) sits just below 
 
 Closed via the ✕ button, an overlay-backdrop click, or Escape. Names, blurbs, and colors are sourced from the same `TRICK_INFO` map used by the in-game Trick panel; the popup adds only the longer copy (`MATRICKS`) and the preview markup (`mtPreview()`). A capture-phase `keydown` listener keeps Escape/arrow keys from reaching the setup-screen handler while the popup is open.
 
+### TricKifiers (Straight Keys modifiers)
+
+Symmetric to MaTricks: a green **TricKifiers** button sits under the **Straight Keys** mode card (MaTricks sits under TricKeys; the row is `space-between`). It opens a small popup (`#tkOverlay`) holding the **Shifty / Double / Spacey** checkboxes (`#optShifty/Double/SpaceyToggle`) — the same inputs as before, just relocated, so their `change` listeners are unchanged. Stack any combination; TricKeys ignores them. Open/close mirrors MaTricks (button, ✕, backdrop, Escape; capture-phase `keydown`).
+
+The old four-checkbox **Options** form-group is gone. **Offbeat** moved to the **Sound & Sync** row (`#fgOffset`) alongside Audio Offset and Calibrate — grouped because they change how the game *feels/sounds*, never its difficulty. Setup keyboard sections are now: `0` music · `1` BPM · `2` Target BPM · `3` Sound & Sync · `4` Mode · `5` Difficulty · `6` Number Keys · `7` Start (the TricKifiers/MaTricks popups and the Offbeat toggle are mouse-driven, like the other popups).
+
 ---
 
 ## Frequency Visualizer (WMP-style)
@@ -370,10 +376,11 @@ A positive `audioOffset` shifts the effective "now" forward — if the user natu
 | **BPM** | The song's actual tempo. Sets the beat grid for note generation and hit windows. |
 | **Target BPM** | The tempo the song is played at. `audioEl.playbackRate = targetBpm / bpm`, pitch-preserving. Equal to BPM = no speed change. Auto-tracks BPM until manually edited. |
 | **Difficulty** | Easy / Medium / Hard / Expert — controls note interval, `shiftPct`, and `doublePct`. |
-| **Mode** | Straight Keys or TricKeys. |
-| **Options** | Four checkboxes: **Offbeat** (both modes) plus **Shifty / Double / Spacey** (Straight Keys only — combinable; ignored by TricKeys). ←→ moves the sub-cursor, Enter toggles. |
+| **Mode** | Straight Keys or TricKeys. Two helper popups sit under the cards: **TricKifiers** (under Straight Keys) and **MaTricks** (under TricKeys). |
+| **TricKifiers** | Popup of the **Shifty / Double / Spacey** modifier checkboxes (Straight Keys only — combinable; ignored by TricKeys). Opened by the button under the Straight Keys mode card. |
 | **Number Keys %** | Fraction of notes drawn from `0–9` vs `a–z`. Default 5%. |
-| **Offbeat** | Shifts the note grid by half a beat (notes land on eighth-note offbeats). Beat indicator phase shifts to match. |
+| **Sound & Sync row** | Groups the controls that change *feel, not difficulty*: **Audio Offset** input, **Calibrate** button, and the **Offbeat** toggle (right-aligned). |
+| **Offbeat** | Shifts the note grid by half a beat (notes land on eighth-note offbeats); beat indicator phase shifts to match. Applies to both modes. Lives in the Sound & Sync row. |
 | **Audio Offset** | Manual timing trim for when calibration isn't needed. |
 
 ### Tempo Shift (Target BPM)

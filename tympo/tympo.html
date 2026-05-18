@@ -185,7 +185,6 @@
     .opt-chip .oc-desc { font-size: 0.58rem; color: rgba(255,255,255,0.34); line-height: 1.25; }
     .opt-chip:has(input:checked) { border-color: rgba(85,255,153,0.55); background: rgba(85,255,153,0.07); }
     .opt-chip:has(input:checked) .oc-name { color: #55ff99; }
-    .opt-chip.kb-subfocus { box-shadow: 0 0 0 2px rgba(255,255,255,0.7); }
 
     /* Ambient glow on unselected difficulty buttons */
     .diff-btn[data-diff="easy"]:not(.active)   { border-color: rgba(85,255,153,0.2);  box-shadow: 0 0 10px 2px rgba(85,255,153,0.1);  }
@@ -445,6 +444,56 @@
     .matricks-btn:active { transform: translateY(1px); }
     .matricks-btn .mb-sub { font-size:0.62rem; font-weight:600; letter-spacing:0.04em; text-transform:none; color:rgba(255,255,255,0.32); }
 
+    /* TricKifiers button — Straight Keys (green) themed */
+    .trickifiers-btn {
+      background: rgba(85,255,153,0.10);
+      border-color: rgba(85,255,153,0.34);
+      color: rgba(170,255,205,0.92);
+    }
+    .trickifiers-btn:hover { background: rgba(85,255,153,0.20); border-color: rgba(120,255,180,0.6); }
+
+    /* Compact inline Offbeat chip (lives in the Sound & Sync row) */
+    .opt-chip-inline {
+      flex: none; flex-direction: row; align-items: center; gap: 7px;
+      padding: 7px 12px;
+    }
+
+    /* TricKifiers popup (mirrors the MaTricks modal, green-tinted) */
+    #tkOverlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,8,0.93);
+      z-index: 210;
+      align-items: center; justify-content: center;
+      padding: 24px;
+    }
+    #tkModal {
+      position: relative;
+      width: min(560px, 94vw);
+      background: #0a0a18;
+      border: 1px solid rgba(85,255,153,0.22);
+      border-radius: 18px;
+      padding: 26px 28px 30px;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+      max-height: 92vh; overflow-y: auto;
+    }
+    #tkModal h2 {
+      font-size: 1.5rem; font-weight: 900; letter-spacing: 0.08em;
+      background: linear-gradient(90deg, #55ff99, #33ddbb);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    #tkClose {
+      position: absolute; top: 16px; right: 16px;
+      width: 32px; height: 32px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 8px; color: rgba(255,255,255,0.55);
+      font-size: 0.95rem; cursor: pointer; line-height: 1;
+    }
+    #tkClose:hover { background: rgba(255,255,255,0.13); color:#fff; }
+    .tk-grid { display: flex; gap: 10px; flex-wrap: wrap; }
+    .tk-grid .opt-chip { min-width: 150px; }
+
     #mtOverlay {
       display: none;
       position: fixed; inset: 0;
@@ -608,6 +657,20 @@
   </div>
 </div>
 
+<!-- ════════ TRICKIFIERS — STRAIGHT KEYS MODIFIERS ════════ -->
+<div id="tkOverlay">
+  <div id="tkModal">
+    <button id="tkClose" aria-label="Close modifiers">✕</button>
+    <h2>TricKifiers</h2>
+    <p class="mt-sub">Modifiers for <strong style="color:rgba(255,255,255,0.7)">Straight Keys</strong> — stack any combination. (<strong style="color:rgba(255,255,255,0.7)">TricKeys</strong> ignores these; it uses MaTricks instead.)</p>
+    <div class="tk-grid">
+      <label class="opt-chip"><input type="checkbox" id="optShiftyToggle"><span class="oc-name">Shifty</span><span class="oc-desc">A fraction of notes need Shift</span></label>
+      <label class="opt-chip"><input type="checkbox" id="optDoubleToggle"><span class="oc-name">Double</span><span class="oc-desc">Some notes are 2-key duos</span></label>
+      <label class="opt-chip"><input type="checkbox" id="optSpaceyToggle"><span class="oc-name">Spacey</span><span class="oc-desc">A Space note on every offbeat</span></label>
+    </div>
+  </div>
+</div>
+
 <!-- ════════ SETUP ════════ -->
 <div id="setupScreen">
   <h1>TricKeys</h1>
@@ -634,23 +697,17 @@
     </div>
   </div>
 
-  <div class="form-group" id="fgOffbeat" style="margin-top:-6px">
-    <label class="form-label">Options <span style="color:rgba(255,255,255,0.18);font-size:0.62rem;text-transform:none;letter-spacing:0;font-weight:400">(←→ to move · Enter to toggle · modifiers apply to Straight Keys)</span></label>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <label class="opt-chip" data-opt="0"><input type="checkbox" id="offbeatToggle"><span class="oc-name">Offbeat</span><span class="oc-desc">Shift grid to the offbeat</span></label>
-      <label class="opt-chip" data-opt="1"><input type="checkbox" id="optShiftyToggle"><span class="oc-name">Shifty</span><span class="oc-desc">Some notes need Shift</span></label>
-      <label class="opt-chip" data-opt="2"><input type="checkbox" id="optDoubleToggle"><span class="oc-name">Double</span><span class="oc-desc">Some notes are 2-key duos</span></label>
-      <label class="opt-chip" data-opt="3"><input type="checkbox" id="optSpaceyToggle"><span class="oc-name">Spacey</span><span class="oc-desc">Space on every offbeat</span></label>
-    </div>
-  </div>
-
   <div class="form-group" id="fgOffset" style="margin-top:-6px">
+    <label class="form-label">Sound &amp; Sync <span style="color:rgba(255,255,255,0.18);font-size:0.62rem;text-transform:none;letter-spacing:0;font-weight:400">(only changes how it feels — never the difficulty)</span></label>
     <div style="display:flex;align-items:center;gap:10px">
       <span class="form-label" style="margin:0;white-space:nowrap">Audio Offset</span>
       <input type="number" id="audioOffsetInput" value="0" min="-150" max="150" step="5"
         style="width:68px;text-align:center;font-size:0.92rem;padding:7px 8px;flex:none">
       <span style="color:rgba(255,255,255,0.4);font-size:0.78rem;font-weight:500">ms</span>
-      <button class="tap-btn" id="calOpenBtn" style="margin-left:auto;white-space:nowrap;font-size:0.78rem;padding:8px 14px">Calibrate</button>
+      <button class="tap-btn" id="calOpenBtn" style="white-space:nowrap;font-size:0.78rem;padding:8px 14px">Calibrate</button>
+      <label class="opt-chip opt-chip-inline" id="offbeatChip" title="Shift the note grid onto the off-beat" style="margin-left:auto">
+        <input type="checkbox" id="offbeatToggle"><span class="oc-name">Offbeat</span>
+      </label>
     </div>
   </div>
 
@@ -660,7 +717,7 @@
       <div class="mode-card active" data-mode="straight">
         <div class="mc-icon">⌨️</div>
         <div class="mc-name">Straight Keys</div>
-        <div class="mc-desc">A steady stream — tune it with the Options above</div>
+        <div class="mc-desc">A steady stream — shape it with TricKifiers</div>
       </div>
       <div class="mode-card" data-mode="trickeys">
         <div class="mc-icon">🎲</div>
@@ -668,7 +725,8 @@
         <div class="mc-desc">Random chained "Tricks" — the style shifts every few measures</div>
       </div>
     </div>
-    <div style="display:flex;justify-content:flex-end;margin-top:9px">
+    <div style="display:flex;justify-content:space-between;margin-top:9px">
+      <button type="button" id="trickifiersBtn" class="matricks-btn trickifiers-btn">✦ TricKifiers <span class="mb-sub">— modifiers</span></button>
       <button type="button" id="matricksBtn" class="matricks-btn">◆ MaTricks <span class="mb-sub">— trick guide</span></button>
     </div>
   </div>
@@ -1003,7 +1061,6 @@ let audioOffset  = 0; // ms — positive shifts hit window later (compensates ea
 // Sections: 0=music 1=bpm 2=targetBpm 3=offbeat 4=offset 5=mode 6=difficulty 7=numpct 8=start
 let menuSection    = 0;
 let menuModeIdx    = 0;
-let optCursor      = 0;  // sub-cursor within the Options section (0..3)
 let pauseFocusIdx  = 0;
 let resultsFocusIdx= 0;
 let numericPct     = 5;  // % of notes that are digits (0–100)
@@ -1348,28 +1405,28 @@ document.addEventListener('keydown', e => {
     const inInput = document.activeElement &&
       (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
     if (!inInput) {
-      if (e.key === 'ArrowDown')  { e.preventDefault(); menuSection = Math.min(8, menuSection + 1); updateMenuFocus(); return; }
+      // Sections: 0 music · 1 bpm · 2 targetBpm · 3 sound&sync ·
+      //           4 mode · 5 difficulty · 6 numKeys · 7 start
+      if (e.key === 'ArrowDown')  { e.preventDefault(); menuSection = Math.min(7, menuSection + 1); updateMenuFocus(); return; }
       if (e.key === 'ArrowUp')    { e.preventDefault(); menuSection = Math.max(0, menuSection - 1); updateMenuFocus(); return; }
       if (e.key === 'ArrowLeft') {
         e.preventDefault();
         if (menuSection === 1) { setBpm(bpm - 1); }
         if (menuSection === 2) { setTargetBpm(targetBpm - 1); }
-        if (menuSection === 3) { optCursor = (optCursor + 3) % 4; updateMenuFocus(); }
-        if (menuSection === 4) { audioOffset = Math.max(-150, audioOffset - 5); document.getElementById('audioOffsetInput').value = audioOffset; }
-        if (menuSection === 5) applyMenuMode((menuModeIdx + MENU_MODES.length - 1) % MENU_MODES.length);
-        if (menuSection === 6) applyDifficulty(DIFF_KEYS[(DIFF_KEYS.indexOf(difficulty) + 3) % 4]);
-        if (menuSection === 7) { numericPct = Math.max(0, numericPct - 1); document.getElementById('numPctInput').value = numericPct; }
+        if (menuSection === 3) { audioOffset = Math.max(-150, audioOffset - 5); document.getElementById('audioOffsetInput').value = audioOffset; }
+        if (menuSection === 4) applyMenuMode((menuModeIdx + MENU_MODES.length - 1) % MENU_MODES.length);
+        if (menuSection === 5) applyDifficulty(DIFF_KEYS[(DIFF_KEYS.indexOf(difficulty) + 3) % 4]);
+        if (menuSection === 6) { numericPct = Math.max(0, numericPct - 1); document.getElementById('numPctInput').value = numericPct; }
         return;
       }
       if (e.key === 'ArrowRight') {
         e.preventDefault();
         if (menuSection === 1) { setBpm(bpm + 1); }
         if (menuSection === 2) { setTargetBpm(targetBpm + 1); }
-        if (menuSection === 3) { optCursor = (optCursor + 1) % 4; updateMenuFocus(); }
-        if (menuSection === 4) { audioOffset = Math.min(150, audioOffset + 5); document.getElementById('audioOffsetInput').value = audioOffset; }
-        if (menuSection === 5) applyMenuMode((menuModeIdx + 1) % MENU_MODES.length);
-        if (menuSection === 6) applyDifficulty(DIFF_KEYS[(DIFF_KEYS.indexOf(difficulty) + 1) % 4]);
-        if (menuSection === 7) { numericPct = Math.min(100, numericPct + 1); document.getElementById('numPctInput').value = numericPct; }
+        if (menuSection === 3) { audioOffset = Math.min(150, audioOffset + 5); document.getElementById('audioOffsetInput').value = audioOffset; }
+        if (menuSection === 4) applyMenuMode((menuModeIdx + 1) % MENU_MODES.length);
+        if (menuSection === 5) applyDifficulty(DIFF_KEYS[(DIFF_KEYS.indexOf(difficulty) + 1) % 4]);
+        if (menuSection === 6) { numericPct = Math.min(100, numericPct + 1); document.getElementById('numPctInput').value = numericPct; }
         return;
       }
       if (e.key === 'Enter' || e.key === ' ') {
@@ -1377,13 +1434,9 @@ document.addEventListener('keydown', e => {
         if (menuSection === 0) document.getElementById('musicFile').click();
         if (menuSection === 1) { document.getElementById('bpmInput').focus(); document.getElementById('bpmInput').select(); }
         if (menuSection === 2) { document.getElementById('targetBpmInput').focus(); document.getElementById('targetBpmInput').select(); }
-        if (menuSection === 3) {
-          const ids = ['offbeatToggle','optShiftyToggle','optDoubleToggle','optSpaceyToggle'];
-          document.getElementById(ids[optCursor]).click();
-        }
-        if (menuSection === 4) calOpen();
-        if (menuSection === 7) { document.getElementById('numPctInput').focus(); document.getElementById('numPctInput').select(); }
-        if (menuSection === 8) {
+        if (menuSection === 3) calOpen();
+        if (menuSection === 6) { document.getElementById('numPctInput').focus(); document.getElementById('numPctInput').select(); }
+        if (menuSection === 7) {
           const btn = document.getElementById('startBtn');
           if (!btn.disabled) {
             bpm = parseInt(document.getElementById('bpmInput').value) || 120;
@@ -3632,26 +3685,22 @@ function applyDifficulty(key) {
 }
 
 function updateMenuFocus() {
-  // Form-group sections (0–4, 7)
-  const fgMap = { 0:'fgMusic', 1:'fgBpm', 2:'fgTargetBpm', 3:'fgOffbeat', 4:'fgOffset', 7:'fgNumPct' };
+  // Form-group sections: 0 music · 1 bpm · 2 targetBpm · 3 sound&sync · 6 numKeys
+  const fgMap = { 0:'fgMusic', 1:'fgBpm', 2:'fgTargetBpm', 3:'fgOffset', 6:'fgNumPct' };
   for (const [sec, id] of Object.entries(fgMap))
     document.getElementById(id).classList.toggle('kb-focus', menuSection === +sec);
-  document.getElementById('fgDifficulty').classList.toggle('kb-focus', menuSection === 6);
+  document.getElementById('fgDifficulty').classList.toggle('kb-focus', menuSection === 5);
 
-  // Mode cards (section 5)
+  // Mode cards (section 4)
   document.querySelectorAll('.mode-card').forEach((c, i) =>
-    c.classList.toggle('kb-focus', menuSection === 5 && i === menuModeIdx));
+    c.classList.toggle('kb-focus', menuSection === 4 && i === menuModeIdx));
 
-  // Options sub-cursor (section 3)
-  document.querySelectorAll('.opt-chip').forEach((c, i) =>
-    c.classList.toggle('kb-subfocus', menuSection === 3 && i === optCursor));
-
-  // Difficulty (section 6)
+  // Difficulty (section 5)
   document.querySelectorAll('.diff-btn').forEach(b =>
-    b.classList.toggle('kb-focus', menuSection === 6 && b.dataset.diff === difficulty));
+    b.classList.toggle('kb-focus', menuSection === 5 && b.dataset.diff === difficulty));
 
-  // Start (section 8)
-  document.getElementById('startBtn').classList.toggle('kb-focus', menuSection === 8);
+  // Start (section 7)
+  document.getElementById('startBtn').classList.toggle('kb-focus', menuSection === 7);
 }
 
 function updatePauseFocus() {
@@ -3684,14 +3733,14 @@ function updateResultsFocus() {
     btn.dataset.diff = key;
     btn.style.setProperty('--diff-color', def.color);
     btn.innerHTML = `<div class="diff-name">${def.label}</div><div class="diff-desc">${DESCS[key]}</div>`;
-    btn.addEventListener('click', () => { menuSection = 6; applyDifficulty(key); });
+    btn.addEventListener('click', () => { menuSection = 5; applyDifficulty(key); });
     grid.appendChild(btn);
   });
 })();
 
 // Mode cards
 document.querySelectorAll('.mode-card').forEach((card, idx) => {
-  card.addEventListener('click', () => { menuSection = 5; applyMenuMode(idx); });
+  card.addEventListener('click', () => { menuSection = 4; applyMenuMode(idx); });
 });
 
 // ── MaTricks: TricKeys trick-guide popup ────────────────────
@@ -3829,6 +3878,23 @@ document.addEventListener('keydown', e => {
   e.stopImmediatePropagation();
 }, true);
 
+// ── TricKifiers: Straight Keys modifier popup (mirrors MaTricks) ──
+const tkOverlayEl = document.getElementById('tkOverlay');
+function tkIsOpen() { const d = tkOverlayEl.style.display; return d !== 'none' && d !== ''; }
+function tkOpen()   { tkOverlayEl.style.display = 'flex'; }
+function tkClose()  { tkOverlayEl.style.display = 'none'; }
+
+document.getElementById('trickifiersBtn').addEventListener('click', tkOpen);
+document.getElementById('tkClose').addEventListener('click', tkClose);
+tkOverlayEl.addEventListener('click', e => { if (e.target === tkOverlayEl) tkClose(); });
+
+document.addEventListener('keydown', e => {
+  if (!tkIsOpen()) return;
+  if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); tkClose(); return; }
+  // Space/Enter still toggle a focused checkbox (default not prevented).
+  e.stopImmediatePropagation();
+}, true);
+
 // File picker
 document.getElementById('musicFile').addEventListener('change', e => {
   const file = e.target.files[0];
@@ -3881,14 +3947,11 @@ document.getElementById('targetBpmInput').addEventListener('input', e => {
   updateRateLabel();
 });
 
-// Options (Offbeat + Straight Keys modifiers)
+// Offbeat (Sound & Sync row) + Straight Keys modifiers (TricKifiers popup)
 document.getElementById('offbeatToggle').addEventListener('change', e => { offbeat = e.target.checked; });
 document.getElementById('optShiftyToggle').addEventListener('change', e => { optShifty = e.target.checked; });
 document.getElementById('optDoubleToggle').addEventListener('change', e => { optDouble = e.target.checked; });
 document.getElementById('optSpaceyToggle').addEventListener('change', e => { optSpacey = e.target.checked; });
-document.querySelectorAll('.opt-chip').forEach((chip, i) => {
-  chip.addEventListener('click', () => { menuSection = 3; optCursor = i; updateMenuFocus(); });
-});
 
 // Audio offset
 document.getElementById('audioOffsetInput').addEventListener('input', e => {
