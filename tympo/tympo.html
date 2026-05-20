@@ -1966,6 +1966,7 @@ function drawFrame(nowMs) {
   drawMultBar();
   drawPowerupOverlay(nowMs);
   drawHUD(nowMs);
+  drawStatsHud();
   drawFxLayer();
   drawParticleLayer();
   drawScanlines();
@@ -3462,6 +3463,75 @@ function drawHUD(nowMs) {
     ctx.fillStyle = '#ffdd55';
     ctx.fillText('× ' + (targetBpm / bpm).toFixed(2), CW - 20, 54);
   }
+
+  ctx.restore();
+}
+
+function _fmtTime(s) {
+  s = Math.max(0, Math.floor(s || 0));
+  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+}
+
+// Top-center cluster: song progress, live accuracy, and a stacked
+// perfect/good/ok/miss quality chart (same color language as results).
+function drawStatsHud() {
+  const W = 300, X = CW / 2 - W / 2, P = 8;
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(8,10,20,0.55)';
+  rrect(ctx, X - 14, P - 2, W + 28, 62, 10); ctx.fill();
+  ctx.textBaseline = 'alphabetic';
+
+  // ── Song progress ──────────────────────────────────────────
+  const durS = (audioEl && isFinite(audioEl.duration) && audioEl.duration > 0)
+    ? audioEl.duration : (songDuration / 1000) || 0;
+  const curS = audioEl ? audioEl.currentTime : 0;
+  const sp   = durS > 0 ? clamp(curS / durS, 0, 1) : 0;
+
+  ctx.font = 'bold 9px monospace';
+  ctx.textAlign = 'left';  ctx.fillStyle = 'rgba(255,255,255,0.45)';
+  ctx.fillText('SONG', X, P + 12);
+  ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.fillText(_fmtTime(curS) + ' / ' + _fmtTime(durS), X + W, P + 12);
+
+  const sbY = P + 16, sbH = 5, scol = '#7aa7ff';
+  ctx.fillStyle = 'rgba(255,255,255,0.10)';
+  rrect(ctx, X, sbY, W, sbH, 2.5); ctx.fill();
+  ctx.fillStyle = scol; ctx.shadowColor = scol; ctx.shadowBlur = 6;
+  rrect(ctx, X, sbY, Math.max(2, W * sp), sbH, 2.5); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // ── Accuracy so far (of resolved keys, fraction hit in window) ─
+  const hit = perfects + goods + oks, tot = hit + misses;
+  const acc = tot > 0 ? (hit / tot * 100) : 0;
+  ctx.font = 'bold 9px monospace';
+  ctx.textAlign = 'left';  ctx.fillStyle = 'rgba(255,255,255,0.45)';
+  ctx.fillText('ACCURACY', X, P + 40);
+  ctx.textAlign = 'right';
+  ctx.font = 'bold 15px monospace';
+  ctx.fillStyle = tot > 0 ? '#88ccff' : 'rgba(255,255,255,0.3)';
+  ctx.fillText(tot > 0 ? acc.toFixed(1) + '%' : '—', X + W, P + 42);
+
+  // ── Hit-quality chart (stacked %) ──────────────────────────
+  const chY = P + 46, chH = 8;
+  ctx.save();
+  rrect(ctx, X, chY, W, chH, 3); ctx.clip();
+  ctx.fillStyle = 'rgba(255,255,255,0.08)';
+  ctx.fillRect(X, chY, W, chH);
+  if (tot > 0) {
+    let cx = X;
+    for (const [c, n] of [['#ffdd55', perfects], ['#55ff99', goods],
+                          ['#88aaff', oks], ['#ff5577', misses]]) {
+      if (n <= 0) continue;
+      const w = W * (n / tot);
+      ctx.fillStyle = c;
+      ctx.fillRect(cx, chY, w + 0.5, chH);
+      cx += w;
+    }
+  }
+  ctx.restore();
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.lineWidth = 1;
+  rrect(ctx, X, chY, W, chH, 3); ctx.stroke();
 
   ctx.restore();
 }

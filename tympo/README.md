@@ -334,6 +334,11 @@ A vertical multiplier bar (28×full-highway-height at `x=750`) shows the four ti
 
 The in-game HUD is intentionally minimal: a `SCORE` label and the live score (`#88ccff`, 32px monospace) at top-left, the current combo (`{n}× COMBO`, gold) just below; the active difficulty (in its color) and mode (in mode color) right-aligned at top-right; and the playback rate (`× 1.25`) below them when Target BPM ≠ Song BPM.
 
+A compact **stats cluster** (`drawStatsHud()`) sits top-center on a translucent backing:
+- **Song progress** — a blue bar with elapsed / total `m:ss` (from `audioEl.currentTime` / `duration`, falling back to `songDuration`).
+- **Accuracy so far** — of *resolved* keys (`perfects + goods + oks` vs. those + `misses`, i.e. keys whose hit window has passed), shown as a live percentage; `—` until the first key resolves.
+- **Quality chart** — a stacked bar with `perfect / good / ok / miss` widths proportional to their counts, in the same colors as the results screen (`#ffdd55 / #55ff99 / #88aaff / #ff5577`). Drawn each PLAYING frame after `drawHUD()`.
+
 ---
 
 ## Powerups
