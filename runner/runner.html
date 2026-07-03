@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Ring Rush</title>
+<style>
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #14151c;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+body { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+
+/* ── Desktop: fake phone frame ── */
+#rr-frame { width: 372px; background: #1d1e26; border-radius: 40px; padding: 10px;
+  position: relative; box-shadow: 0 24px 70px rgba(0,0,0,0.55), 0 1px 0 rgba(255,255,255,0.05) inset; flex-shrink: 0; }
+#rr-frame::before { content: ''; position: absolute; top: 21px; left: 50%; transform: translateX(-50%);
+  width: 96px; height: 25px; background: #08090c; border-radius: 14px; z-index: 50; }
+#rr-game { position: relative; width: 100%; height: 760px; border-radius: 32px; overflow: hidden;
+  background: #7ad0ef; user-select: none; touch-action: none; cursor: pointer; }
+#rr-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+/* ── Real mobile: full viewport ── */
+@media (max-width: 520px) {
+  body { background: #000; display: block; }
+  #rr-frame { width: 100vw; background: none; border-radius: 0; padding: 0; box-shadow: none; }
+  #rr-frame::before { display: none; }
+  #rr-game { width: 100vw; height: 100dvh; border-radius: 0; }
+}
+
+/* ── HUD ── */
+#rr-hud { position: absolute; top: 0; left: 0; right: 0; display: flex; justify-content: space-between;
+  align-items: flex-start; gap: 8px; padding: 14px 14px 0; z-index: 20; pointer-events: none;
+  padding-top: max(14px, env(safe-area-inset-top, 14px)); }
+.rr-card { background: rgba(20,22,34,0.42); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+  padding: 6px 11px; border-radius: 13px; color: #fff; font-weight: 800; font-size: 15px;
+  display: flex; align-items: center; gap: 7px; line-height: 1; letter-spacing: 0.3px;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.45); box-shadow: 0 2px 8px rgba(0,0,0,0.18); }
+.rr-card.rings { color: #ffe14d; }
+.rr-card .lbl { font-size: 9px; font-weight: 700; opacity: 0.75; letter-spacing: 1.2px; color:#fff; }
+#rr-score-wrap { flex-direction: column; align-items: flex-end; gap: 2px; }
+.rr-ringicon { width: 17px; height: 17px; display: inline-block; }
+.rr-heart { font-size: 16px; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.3)); }
+
+/* ── Center overlays (title / game over) ── */
+#rr-overlay { position: absolute; inset: 0; z-index: 40; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; text-align: center; padding: 24px;
+  background: radial-gradient(ellipse at 50% 38%, rgba(10,12,24,0.18) 0%, rgba(8,10,22,0.62) 100%);
+  color: #fff; transition: opacity 0.3s; }
+#rr-overlay.hidden { opacity: 0; pointer-events: none; }
+.rr-logo { font-size: 13px; font-weight: 800; letter-spacing: 4px; color: #ffd23c;
+  text-shadow: 0 2px 0 #c77f00, 0 0 16px rgba(255,193,40,0.6); margin-bottom: 2px; }
+.rr-title { font-size: 60px; font-weight: 900; line-height: 0.92; letter-spacing: -1px; margin: 0 0 4px;
+  background: linear-gradient(180deg, #fff 0%, #ffd23c 52%, #ff9e2e 100%); -webkit-background-clip: text;
+  background-clip: text; color: transparent; filter: drop-shadow(0 3px 0 #b3471f) drop-shadow(0 6px 14px rgba(0,0,0,0.5)); }
+.rr-sub { font-size: 14px; font-weight: 600; opacity: 0.92; margin-bottom: 20px; }
+.rr-keys { display: flex; gap: 14px; margin: 6px 0 22px; flex-wrap: wrap; justify-content: center; max-width: 320px; }
+.rr-key { display: flex; flex-direction: column; align-items: center; gap: 5px; font-size: 10.5px;
+  font-weight: 700; opacity: 0.95; width: 64px; }
+.rr-key .ico { width: 40px; height: 40px; border-radius: 11px; background: rgba(255,255,255,0.13);
+  border: 1.5px solid rgba(255,255,255,0.22); display: flex; align-items: center; justify-content: center;
+  font-size: 20px; }
+.rr-key small { opacity: 0.7; font-weight: 600; font-size: 9px; }
+.rr-start { font-size: 17px; font-weight: 900; letter-spacing: 1px; color: #1b1130;
+  background: linear-gradient(180deg, #ffe070, #ffc324); padding: 14px 34px; border-radius: 30px;
+  border: none; box-shadow: 0 6px 0 #c98700, 0 10px 22px rgba(0,0,0,0.35); cursor: pointer;
+  font-family: inherit; animation: rrPulse 1.4s ease-in-out infinite; }
+.rr-start:active { transform: translateY(4px); box-shadow: 0 2px 0 #c98700, 0 5px 14px rgba(0,0,0,0.35); }
+@keyframes rrPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+.rr-over-title { font-size: 46px; font-weight: 900; letter-spacing: 1px; margin: 0 0 14px;
+  color: #fff; text-shadow: 0 3px 0 #8a1228, 0 6px 16px rgba(0,0,0,0.5); }
+.rr-stats { display: flex; gap: 10px; margin-bottom: 22px; }
+.rr-stat { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 14px; padding: 12px 18px; min-width: 92px; }
+.rr-stat .v { font-size: 28px; font-weight: 900; line-height: 1; }
+.rr-stat .v.gold { color: #ffd23c; }
+.rr-stat .k { font-size: 9.5px; font-weight: 700; letter-spacing: 1.4px; opacity: 0.7; margin-top: 6px; }
+.rr-best { font-size: 12px; font-weight: 700; opacity: 0.85; margin-top: 14px; letter-spacing: 0.5px; }
+.rr-newbest { color: #ffd23c; animation: rrPulse 0.9s ease-in-out infinite; }
+.rr-toast { position: absolute; top: 32%; left: 50%; transform: translateX(-50%); z-index: 30;
+  font-size: 30px; font-weight: 900; color: #ffd23c; text-shadow: 0 2px 0 #b3471f, 0 0 18px rgba(255,193,40,0.7);
+  pointer-events: none; opacity: 0; letter-spacing: 1px; }
+.rr-toast.show { animation: rrToast 1.1s ease-out forwards; }
+@keyframes rrToast { 0% { opacity: 0; transform: translateX(-50%) translateY(14px) scale(0.7); }
+  18% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1.1); }
+  72% { opacity: 1; transform: translateX(-50%) translateY(-4px) scale(1); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-30px) scale(0.95); } }
+</style>
+</head>
+<body>
+<div id="rr-frame">
+  <div id="rr-game">
+    <canvas id="rr-canvas"></canvas>
+    <div id="rr-hud">
+      <div class="rr-card" id="rr-lives"></div>
+      <div class="rr-card rings">
+        <svg class="rr-ringicon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="#ffd23c" stroke-width="4.5"/><circle cx="12" cy="12" r="9" fill="none" stroke="#ffffff" stroke-width="1.4" opacity="0.6"/></svg>
+        <span id="rr-rings">0</span>
+      </div>
+      <div class="rr-card" id="rr-score-wrap">
+        <span class="lbl">SCORE</span><span id="rr-score">0</span>
+      </div>
+    </div>
+    <div class="rr-toast" id="rr-toast"></div>
+    <div id="rr-overlay">
+      <div class="rr-logo">★ AMY ROSE IN ★</div>
+      <h1 class="rr-title">RING<br>RUSH</h1>
+      <div class="rr-sub">A golden-ring endless runner</div>
+      <div class="rr-keys">
+        <div class="rr-key"><div class="ico">↔</div>SWITCH LANE<small>← →  /  swipe</small></div>
+        <div class="rr-key"><div class="ico">↑</div>JUMP<small>↑ / tap / swipe up</small></div>
+        <div class="rr-key"><div class="ico">↓</div>SLIDE<small>↓ / swipe down</small></div>
+      </div>
+      <button class="rr-start" id="rr-start">TAP TO START</button>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+'use strict';
+
+// ════════════════════════════════════════════════════════════════════
+//  Ring Rush — an Amy Rose endless runner   (pseudo-3D, 3-lane highway)
+// ════════════════════════════════════════════════════════════════════
+
+const $ = id => document.getElementById(id);
+const game = $('rr-game'), cv = $('rr-canvas'), ctx = cv.getContext('2d');
+const overlay = $('rr-overlay'), startBtn = $('rr-start'), toastEl = $('rr-toast');
+const livesEl = $('rr-lives'), ringsEl = $('rr-rings'), scoreEl = $('rr-score');
+
+// ── canvas sizing (CSS px logical space, retina-sharp backing store) ──
+let W = 372, H = 760, DPR = 1;
+function resize() {
+  const r = game.getBoundingClientRect();
+  W = Math.max(1, r.width); H = Math.max(1, r.height);
+  DPR = Math.min(window.devicePixelRatio || 1, 2.5);
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ── rounded-rect path helper ──
+function rRect(x, y, w, h, r) {
+  if (r > Math.min(w, h) / 2) r = Math.min(w, h) / 2;
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const lerp = (a, b, t) => a + (b - a) * t;
+
+// ── perspective projection (3-lane road) ──
+const Z_FAR = 64, CAM = 13;
+let horizonY, groundY, halfSpacing;     // recomputed per frame from W,H
+function computeGeo() {
+  horizonY = H * 0.34;
+  groundY  = H * 0.83;                   // z=0 ground plane (Amy's feet)
+  halfSpacing = W * 0.265;               // screen px from center to lane |1| at z=0
+}
+const scaleAt = z => CAM / (z + CAM);                    // 1 near → 0 far
+const projY = z => horizonY + (groundY - horizonY) * scaleAt(z);
+const projX = (worldX, z) => W / 2 + worldX * halfSpacing * scaleAt(z);
+// straight-line projection for any screen-y (used to fill road to bottom)
+const roadXatY = (worldX, y) => W / 2 + worldX * halfSpacing * (y - horizonY) / (groundY - horizonY);
+
+// ════════════════════════════════════════════════════════════════════
+//  Audio — tiny WebAudio blip engine (no assets)
+// ════════════════════════════════════════════════════════════════════
+let AC = null;
+function audioInit() { if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
+  if (AC && AC.state === 'suspended') AC.resume(); }
+function blip(freq, dur, type, vol, freq2) {
+  if (!AC) return;
+  try {
+    const t = AC.currentTime, o = AC.createOscillator(), g = AC.createGain();
+    o.type = type || 'square'; o.frequency.setValueAtTime(freq, t);
+    if (freq2) o.frequency.exponentialRampToValueAtTime(Math.max(1, freq2), t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol || 0.16, t + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(AC.destination); o.start(t); o.stop(t + dur + 0.02);
+  } catch (e) {}
+}
+const sfx = {
+  ring:  () => blip(1180, 0.10, 'sine', 0.12, 1760),
+  jump:  () => blip(420, 0.18, 'square', 0.10, 760),
+  slide: () => blip(300, 0.16, 'sawtooth', 0.08, 150),
+  lane:  () => blip(560, 0.06, 'triangle', 0.07),
+  stomp: () => blip(180, 0.14, 'square', 0.16, 70),
+  hit:   () => { blip(160, 0.30, 'sawtooth', 0.20, 60); },
+  oneup: () => { [660, 880, 1320].forEach((f, i) => setTimeout(() => blip(f, 0.16, 'square', 0.13), i * 90)); },
+  over:  () => { [440, 330, 247, 165].forEach((f, i) => setTimeout(() => blip(f, 0.26, 'triangle', 0.15), i * 130)); },
+};
+
+// ════════════════════════════════════════════════════════════════════
+//  Game state
+// ════════════════════════════════════════════════════════════════════
+const LANES = [-1, 0, 1];
+let state, objs, parts, clouds, S;
+let lastTs = 0;
+let best = 0;
+try { best = +(localStorage.getItem('rr-best') || 0) || 0; } catch (e) {}
+
+function freshState(mode) {
+  return {
+    mode,                       // 'title' | 'play' | 'over'
+    dist: 0, speed: 15, ringCount: 0, ringsTotal: 0, lives: 3, score: 0, bonus: 0,
+    lane: 0, visLane: 0,        // logical / visual lane
+    py: 0, vy: 0, air: false,   // jump
+    slide: 0,                   // slide timer (s) remaining
+    runT: 0,
+    inv: 0,                     // invincibility timer (s)
+    shake: 0, flash: 0,
+    nextSpawn: 18, ringMilestone: 100,
+    over: false,
+  };
+}
+function initClouds() {
+  clouds = [];
+  for (let i = 0; i < 5; i++) clouds.push({ x: Math.random(), y: 0.06 + Math.random() * 0.16, s: 0.6 + Math.random() * 0.9, sp: 0.004 + Math.random() * 0.01 });
+}
+
+function reset(mode) {
+  state = freshState(mode);
+  S = state;
+  objs = []; parts = [];
+  if (!clouds) initClouds();
+  updateHUD();
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  Spawning
+// ════════════════════════════════════════════════════════════════════
+function addRing(lane, z) { objs.push({ t: 'ring', lane, z, done: false, spin: Math.random() * 6.28 }); }
+function addObstacle(type, lane, z) { objs.push({ t: type, lane, z, done: false, ph: Math.random() * 6.28 }); }
+
+function spawnRow() {
+  const d = clamp(S.dist / 1700, 0, 1);          // difficulty 0→1
+  const r = Math.random();
+
+  // ~38% of rows are a friendly ring streak in one lane
+  if (r < 0.38) {
+    const lane = LANES[(Math.random() * 3) | 0];
+    const n = 4 + ((Math.random() * 3) | 0);
+    for (let i = 0; i < n; i++) addRing(lane, Z_FAR + i * 2.4);
+    S.nextSpawn = S.dist + lerp(13, 9, d) + Math.random() * 3;
+    return;
+  }
+
+  // otherwise an obstacle row — pick a type unlocked by difficulty
+  const pool = ['cone'];
+  if (d > 0.08) pool.push('badnik');
+  if (d > 0.14) pool.push('gate');
+  if (d > 0.24) pool.push('wall');
+  if (d > 0.45) pool.push('badnik');           // weight enemies later
+  const type = pool[(Math.random() * pool.length) | 0];
+  const lane = LANES[(Math.random() * 3) | 0];
+  addObstacle(type, lane, Z_FAR);
+
+  // occasional second obstacle (never blocks every lane), with a guiding ring
+  if (d > 0.4 && Math.random() < 0.34) {
+    const others = LANES.filter(l => l !== lane);
+    const l2 = others[(Math.random() * others.length) | 0];
+    addObstacle(Math.random() < 0.5 ? 'cone' : 'badnik', l2, Z_FAR + 0.5);
+    const safe = LANES.find(l => l !== lane && l !== l2);
+    for (let i = 0; i < 3; i++) addRing(safe, Z_FAR + i * 2.2);
+  } else if (Math.random() < 0.5) {
+    const safe = LANES.filter(l => l !== lane)[(Math.random() * 2) | 0];
+    for (let i = 0; i < 3; i++) addRing(safe, Z_FAR + 1 + i * 2.2);
+  }
+
+  S.nextSpawn = S.dist + lerp(12, 8, d) + Math.random() * 2.5;
+}
+
+// title-mode ambient ring flow
+function spawnTitleRings() {
+  if (S.dist >= S.nextSpawn) {
+    const lane = LANES[(Math.random() * 3) | 0];
+    for (let i = 0; i < 4; i++) addRing(lane, Z_FAR + i * 2.4);
+    S.nextSpawn = S.dist + 10;
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  Actions
+// ════════════════════════════════════════════════════════════════════
+function moveLane(dir) {
+  if (S.mode !== 'play') return;
+  const nl = clamp(S.lane + dir, -1, 1);
+  if (nl !== S.lane) { S.lane = nl; sfx.lane(); }
+}
+function jump() {
+  if (S.mode !== 'play' || S.air || S.slide > 0) return;
+  S.air = true; S.vy = -260; sfx.jump();
+}
+function slide() {
+  if (S.mode !== 'play' || S.slide > 0) return;
+  if (S.air) { S.vy = 120; }            // fast-fall into a slide if airborne
+  S.slide = 0.62; sfx.slide();
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  Particles
+// ════════════════════════════════════════════════════════════════════
+function burst(x, y, color, n, spd, kind) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * 6.283, s = spd * (0.4 + Math.random() * 0.8);
+    parts.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - spd * 0.5,
+      life: 1, max: 0.5 + Math.random() * 0.4, color, r: 2 + Math.random() * 3, kind: kind || 'spark' });
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  Update
+// ════════════════════════════════════════════════════════════════════
+function takeHit() {
+  if (S.inv > 0) return;
+  S.lives--; S.inv = 1.5; S.shake = 14; S.flash = 0.5; sfx.hit();
+  burst(W / 2 + S.visLane * halfSpacing, groundY - 46, '#ffd23c', 10, 240, 'star');
+  if (S.lives <= 0) gameOver();
+}
+
+function collectRing(sx, sy) {
+  S.ringCount++; S.ringsTotal++; sfx.ring();          // score tracked via ringsTotal in update()
+  burst(sx, sy, '#ffe14d', 6, 150, 'spark');
+  if (S.ringCount >= S.ringMilestone) {     // 100 rings → extra life (1-UP!)
+    S.ringMilestone += 100; S.lives = Math.min(9, S.lives + 1);
+    sfx.oneup(); showToast('1-UP!');
+  }
+  updateHUD();
+}
+
+function update(dt) {
+  const playing = S.mode === 'play';
+  // forward motion + difficulty ramp
+  if (playing) S.speed = Math.min(34, 15 + S.dist * 0.0075);
+  S.dist += S.speed * dt;
+  S.runT += dt * (7 + S.speed * 0.16);
+  if (playing) S.score = Math.floor(S.dist * 1.4) + S.ringsTotal * 12 + S.bonus;
+
+  // timers
+  if (S.inv > 0) S.inv = Math.max(0, S.inv - dt);
+  if (S.shake > 0) S.shake = Math.max(0, S.shake - dt * 26);
+  if (S.flash > 0) S.flash = Math.max(0, S.flash - dt * 1.6);
+
+  // jump physics
+  if (S.air) {
+    S.py -= S.vy * dt; S.vy += 720 * dt;       // py up = positive
+    if (S.py <= 0) { S.py = 0; S.air = false; S.vy = 0;
+      burst(W / 2 + S.visLane * halfSpacing, groundY, '#e9ddc4', 7, 110, 'dust'); }
+  }
+  if (S.slide > 0) S.slide = Math.max(0, S.slide - dt);
+
+  // lane tween
+  S.visLane = lerp(S.visLane, S.lane, clamp(dt * 14, 0, 1));
+
+  // clouds drift
+  for (const c of clouds) { c.x += c.sp * dt; if (c.x > 1.2) c.x = -0.2; }
+
+  // spawn
+  if (playing) { while (S.dist >= S.nextSpawn) spawnRow(); }
+  else if (S.mode === 'title') spawnTitleRings();
+
+  // move + resolve objects
+  const airborne = S.py > 6, sliding = S.slide > 0;
+  for (const o of objs) {
+    o.z -= S.speed * dt;
+    if (!o.done && o.z <= 0) {
+      o.done = true;
+      const same = o.lane === S.lane;
+      const sx = projX(S.visLane, 0), sy = projY(0);
+      if (o.t === 'ring') {
+        if (same || S.mode === 'title') { collectRing(projX(o.lane, 0), groundY - 40); o.gone = true; }
+      } else if (playing && same) {
+        if (o.t === 'cone')      { if (!airborne) takeHit(); }
+        else if (o.t === 'gate') { if (!sliding) takeHit(); }
+        else if (o.t === 'wall') { takeHit(); }
+        else if (o.t === 'badnik') {
+          if (airborne) { o.gone = true; S.bonus += 60; S.vy = -200; sfx.stomp();
+            burst(projX(o.lane, 0), groundY - 30, '#ff6a4d', 12, 200, 'spark'); showToast('+60'); }
+          else takeHit();
+        }
+      }
+    }
+  }
+  objs = objs.filter(o => o.z > -5 && !o.gone);
+
+  // particles
+  for (const p of parts) {
+    p.life -= dt / p.max; p.x += p.vx * dt; p.y += p.vy * dt;
+    if (p.kind !== 'dust') p.vy += 460 * dt; else p.vy += 60 * dt;
+  }
+  parts = parts.filter(p => p.life > 0);
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  Render — background
+// ════════════════════════════════════════════════════════════════════
+function drawSky() {
+  const g = ctx.createLinearGradient(0, 0, 0, horizonY + 30);
+  g.addColorStop(0, '#39b4e8'); g.addColorStop(0.6, '#7fd1f0'); g.addColorStop(1, '#cdeeff');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, horizonY + 30);
+
+  // sun
+  ctx.save(); ctx.globalAlpha = 0.95;
+  const sx = W * 0.78, sy = horizonY * 0.42;
+  const sg = ctx.createRadialGradient(sx, sy, 4, sx, sy, 60);
+  sg.addColorStop(0, '#fff7c8'); sg.addColorStop(0.5, '#ffe98f'); sg.addColorStop(1, 'rgba(255,233,143,0)');
+  ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(sx, sy, 60, 0, 6.2832); ctx.fill();
+  ctx.fillStyle = '#fff4bd'; ctx.beginPath(); ctx.arc(sx, sy, 26, 0, 6.2832); ctx.fill();
+  ctx.restore();
+
+  // clouds
+  ctx.fillStyle = 'rgba(255,255,255,0.92)';
+  for (const c of clouds) {
+    const cx = c.x * W, cy = c.y * H, s = c.s;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 16 * s, 0, 6.2832);
+    ctx.arc(cx + 18 * s, cy + 4 * s, 13 * s, 0, 6.2832);
+    ctx.arc(cx - 18 * s, cy + 5 * s, 12 * s, 0, 6.2832);
+    ctx.arc(cx + 2 * s, cy - 8 * s, 13 * s, 0, 6.2832);
+    ctx.fill();
+  }
+
+  // rolling green hills (Green Hill homage) sitting on the horizon
+  ctx.fillStyle = '#54bf3f';
+  const hb = horizonY + 8;
+  ctx.beginPath(); ctx.moveTo(0, hb);
+  for (let i = 0; i <= 6; i++) {
+    const x = (i / 6) * W;
+    ctx.quadraticCurveTo(x - W / 12, hb - 26 - (i % 2) * 14, x, hb - 2);
+  }
+  ctx.lineTo(W, horizonY + 40); ctx.lineTo(0, horizonY + 40); ctx.fill();
+  ctx.fillStyle = '#3da12d';
+  ctx.fillRect(0, hb - 2, W, 6);
+}
+
+function drawRoad() {
+  // grass base under everything below horizon
+  const gg = ctx.createLinearGradient(0, horizonY, 0, H);
+  gg.addColorStop(0, '#4fb53a'); gg.addColorStop(1, '#2f8f24');
+  ctx.fillStyle = gg; ctx.fillRect(0, horizonY, W, H - horizonY);
+
+  // checkerboard verge stripes (Sonic flavor) along the grass, scrolling
+  const BAND = 3.2;
+  for (let z = 0; z < Z_FAR; z += BAND) {
+    const idx = Math.floor((z + S.dist) / BAND);
+    const yN = projY(z), yF = projY(z + BAND);
+    ctx.fillStyle = (idx & 1) ? '#46a830' : '#3f9d2b';
+    ctx.beginPath();
+    ctx.moveTo(roadXatY(-2.6, yN), yN); ctx.lineTo(roadXatY(2.6, yN), yN);
+    ctx.lineTo(roadXatY(2.6, yF), yF); ctx.lineTo(roadXatY(-2.6, yF), yF); ctx.closePath(); ctx.fill();
+  }
+
+  // asphalt — alternating scrolling bands for a speed read
+  for (let z = 0; z < Z_FAR; z += BAND) {
+    const idx = Math.floor((z + S.dist) / BAND);
+    const yN = Math.min(H, projY(z)), yF = projY(z + BAND);
+    ctx.fillStyle = (idx & 1) ? '#52565f' : '#494d56';
+    ctx.beginPath();
+    ctx.moveTo(roadXatY(-1.62, yN), yN); ctx.lineTo(roadXatY(1.62, yN), yN);
+    ctx.lineTo(roadXatY(1.62, yF), yF); ctx.lineTo(roadXatY(-1.62, yF), yF); ctx.closePath(); ctx.fill();
+  }
+  // near foreground band (z=0 → bottom of screen)
+  ctx.fillStyle = (Math.floor(S.dist / BAND) & 1) ? '#494d56' : '#52565f';
+  ctx.beginPath();
+  ctx.moveTo(roadXatY(-1.62, groundY), groundY); ctx.lineTo(roadXatY(1.62, groundY), groundY);
+  ctx.lineTo(roadXatY(1.62, H), H); ctx.lineTo(roadXatY(-1.62, H), H); ctx.closePath(); ctx.fill();
+
+  // solid white edge lines
+  ctx.strokeStyle = '#f2f2ee'; ctx.lineWidth = 3;
+  for (const e of [-1.5, 1.5]) {
+    ctx.beginPath(); ctx.moveTo(roadXatY(e, horizonY + 1), horizonY + 1); ctx.lineTo(roadXatY(e, H), H); ctx.stroke();
+  }
+  // red/white rumble curbs just outside the road
+  const DZ = 2.4;
+  for (let z = 0; z < Z_FAR; z += DZ) {
+    const idx = Math.floor((z + S.dist) / DZ);
+    const yN = projY(z), yF = projY(z + DZ * 0.96);
+    ctx.fillStyle = (idx & 1) ? '#e23b34' : '#f6f6f2';
+    for (const sgn of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(roadXatY(sgn * 1.5, yN), yN); ctx.lineTo(roadXatY(sgn * 1.62, yN), yN);
+      ctx.lineTo(roadXatY(sgn * 1.62, yF), yF); ctx.lineTo(roadXatY(sgn * 1.5, yF), yF); ctx.closePath(); ctx.fill();
+    }
+  }
+
+  // dashed lane dividers (worldX ±0.5), scrolling
+  ctx.fillStyle = '#f7d23a';
+  const DASH = 2.0;
+  for (const d of [-0.5, 0.5]) {
+    for (let z = 0; z < Z_FAR; z += DASH) {
+      if (Math.floor((z + S.dist) / DASH) & 1) continue;
+      const z2 = Math.min(Z_FAR, z + DASH * 0.62);
+      const w1 = Math.max(0.6, 4.6 * scaleAt(z)), w2 = Math.max(0.4, 4.6 * scaleAt(z2));
+      const x1 = projX(d, z), y1 = projY(z), x2 = projX(d, z2), y2 = projY(z2);
+      ctx.beginPath();
+      ctx.moveTo(x1 - w1, y1); ctx.lineTo(x1 + w1, y1);
+      ctx.lineTo(x2 + w2, y2); ctx.lineTo(x2 - w2, y2); ctx.closePath(); ctx.fill();
+    }
+  }
+}
+
+function groundShadow(x, y, w) {
+  ctx.save(); ctx.fillStyle = 'rgba(0,0,0,0.22)';
+  ctx.beginPath(); ctx.ellipse(x, y, w, w * 0.34, 0, 0, 6.2832); ctx.fill(); ctx.restore();
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  Render — collectibles, obstacles, enemies
+// ════════════════════════════════════════════════════════════════════
+function drawRing(o) {
+  const s = scaleAt(o.z), x = projX(o.lane, o.z), y = projY(o.z) - 40 * s;
+  const R = 17 * s;
+  o.spin += 0.13;
+  const sq = Math.abs(Math.cos(o.spin));                 // fake 3D spin
+  ctx.save(); ctx.translate(x, y);
+  groundShadow(0, projY(o.z) - y, 11 * s);
+  ctx.scale(clamp(sq, 0.16, 1), 1);
+  ctx.lineWidth = R * 0.42;
+  ctx.strokeStyle = '#f6b200'; ctx.beginPath(); ctx.arc(0, 0, R, 0, 6.2832); ctx.stroke();
+  ctx.lineWidth = R * 0.42; ctx.strokeStyle = '#ffd23c';
+  ctx.beginPath(); ctx.arc(0, 0, R, 0, 6.2832); ctx.stroke();
+  ctx.lineWidth = R * 0.14; ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+  ctx.beginPath(); ctx.arc(0, 0, R * 1.02, -2.3, -0.7); ctx.stroke();
+  ctx.restore();
+  // sparkle
+  if (sq > 0.93) { ctx.fillStyle = '#fff'; ctx.globalAlpha = 0.9;
+    ctx.beginPath(); ctx.arc(x + R * 0.5, y - R * 0.5, 1.6 * s + 1, 0, 6.2832); ctx.fill(); ctx.globalAlpha = 1; }
+}
+
+function drawCone(o) {
+  const s = scaleAt(o.z), x = projX(o.lane, o.z), gy = projY(o.z);
+  groundShadow(x, gy, 20 * s);
+  const h = 46 * s, w = 26 * s;
+  ctx.fillStyle = '#ff7a2f';
+  ctx.beginPath(); ctx.moveTo(x, gy - h); ctx.lineTo(x + w / 2, gy); ctx.lineTo(x - w / 2, gy); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.moveTo(x - w * 0.34, gy - h * 0.42); ctx.lineTo(x + w * 0.34, gy - h * 0.42);
+  ctx.lineTo(x + w * 0.42, gy - h * 0.22); ctx.lineTo(x - w * 0.42, gy - h * 0.22); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#e0651f'; rRect(x - w * 0.62, gy - 4 * s, w * 1.24, 5 * s, 2 * s); ctx.fill();
+}
+
+function drawGate(o) {
+  const s = scaleAt(o.z), gy = projY(o.z);
+  const lx = projX(o.lane - 0.46, o.z), rx = projX(o.lane + 0.46, o.z);
+  const barY = gy - 78 * s, barH = 16 * s;
+  groundShadow(projX(o.lane, o.z), gy, 24 * s);
+  ctx.fillStyle = '#b9bcc4';
+  rRect(lx - 4 * s, barY, 8 * s, gy - barY, 2 * s); ctx.fill();
+  rRect(rx - 4 * s, barY, 8 * s, gy - barY, 2 * s); ctx.fill();
+  // hazard bar (slide under)
+  rRect(lx, barY - barH, rx - lx, barH, 3 * s); ctx.fillStyle = '#ffcf2e'; ctx.fill();
+  ctx.save(); rRect(lx, barY - barH, rx - lx, barH, 3 * s); ctx.clip();
+  ctx.fillStyle = '#26282e';
+  const step = 16 * s;
+  for (let i = -1; i < (rx - lx) / step + 1; i++) {
+    ctx.beginPath(); const bx = lx + i * step;
+    ctx.moveTo(bx, barY - barH); ctx.lineTo(bx + step * 0.5, barY - barH);
+    ctx.lineTo(bx + step * 0.5 - barH, barY); ctx.lineTo(bx - barH, barY); ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+  // little down-arrow hint
+  ctx.fillStyle = '#fff'; ctx.globalAlpha = 0.9;
+  const ax = projX(o.lane, o.z), ay = gy - 44 * s;
+  ctx.beginPath(); ctx.moveTo(ax - 6 * s, ay); ctx.lineTo(ax + 6 * s, ay); ctx.lineTo(ax, ay + 8 * s); ctx.closePath(); ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+function drawWall(o) {
+  const s = scaleAt(o.z), gy = projY(o.z);
+  const lx = projX(o.lane - 0.5, o.z), rx = projX(o.lane + 0.5, o.z);
+  const h = 88 * s;
+  groundShadow(projX(o.lane, o.z), gy, 26 * s);
+  rRect(lx, gy - h, rx - lx, h, 4 * s); ctx.fillStyle = '#d23a30'; ctx.fill();
+  ctx.save(); rRect(lx, gy - h, rx - lx, h, 4 * s); ctx.clip();
+  ctx.fillStyle = '#f4f4ef'; ctx.lineWidth = 0;
+  const sw = (rx - lx);
+  for (let i = -2; i < 6; i++) {
+    ctx.beginPath();
+    const yy = gy - h + i * 20 * s + ((S.dist * 12) % (20 * s));
+    ctx.moveTo(lx, yy); ctx.lineTo(rx, yy + sw * 0.5);
+    ctx.lineTo(rx, yy + sw * 0.5 + 10 * s); ctx.lineTo(lx, yy + 10 * s); ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+  ctx.strokeStyle = '#8e241c'; ctx.lineWidth = 2 * s; rRect(lx, gy - h, rx - lx, h, 4 * s); ctx.stroke();
+}
+
+function drawBadnik(o) {
+  const s = scaleAt(o.z), x = projX(o.lane, o.z), gy = projY(o.z);
+  const bob = Math.sin(S.runT * 2 + o.ph) * 2 * s;
+  groundShadow(x, gy, 19 * s);
+  const cy = gy - 22 * s + bob, bw = 38 * s, bh = 30 * s;
+  // wheel/track
+  ctx.fillStyle = '#2b2d33'; rRect(x - bw * 0.5, gy - 14 * s, bw, 14 * s, 7 * s); ctx.fill();
+  ctx.fillStyle = '#4a4d55'; ctx.beginPath(); ctx.arc(x, gy - 7 * s, 5 * s, 0, 6.2832); ctx.fill();
+  // red dome body
+  ctx.fillStyle = '#d8362a';
+  ctx.beginPath(); ctx.ellipse(x, cy, bw * 0.5, bh * 0.5, 0, Math.PI, 0); ctx.fill();
+  rRect(x - bw * 0.5, cy, bw, bh * 0.32, 0); ctx.fill();
+  ctx.fillStyle = '#ef5a4a';
+  ctx.beginPath(); ctx.ellipse(x - bw * 0.16, cy - bh * 0.12, bw * 0.22, bh * 0.2, 0, Math.PI, 0); ctx.fill();
+  // silver rim
+  ctx.fillStyle = '#c9ccd2'; rRect(x - bw * 0.5, cy - 2 * s, bw, 4 * s, 2 * s); ctx.fill();
+  // angry eyes
+  ctx.fillStyle = '#ffe14d';
+  ctx.beginPath(); ctx.arc(x - 8 * s, cy - 4 * s, 5 * s, 0, 6.2832); ctx.arc(x + 8 * s, cy - 4 * s, 5 * s, 0, 6.2832); ctx.fill();
+  ctx.fillStyle = '#1c1c22';
+  ctx.beginPath(); ctx.arc(x - 7 * s, cy - 3 * s, 2.3 * s, 0, 6.2832); ctx.arc(x + 9 * s, cy - 3 * s, 2.3 * s, 0, 6.2832); ctx.fill();
+  ctx.strokeStyle = '#7a1610'; ctx.lineWidth = 2 * s; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x - 13 * s, cy - 11 * s); ctx.lineTo(x - 4 * s, cy - 7 * s);
+  ctx.moveTo(x + 13 * s, cy - 11 * s); ctx.lineTo(x + 4 * s, cy - 7 * s); ctx.stroke();
+  // antennae
+  ctx.strokeStyle = '#2b2d33'; ctx.lineWidth = 2 * s;
+  ctx.beginPath(); ctx.moveTo(x - 6 * s, cy - bh * 0.45); ctx.lineTo(x - 12 * s, cy - bh * 0.8);
+  ctx.moveTo(x + 6 * s, cy - bh * 0.45); ctx.lineTo(x + 12 * s, cy - bh * 0.8); ctx.stroke();
+  ctx.fillStyle = '#ffd23c';
+  ctx.beginPath(); ctx.arc(x - 12 * s, cy - bh * 0.8, 2.6 * s, 0, 6.2832); ctx.arc(x + 12 * s, cy - bh * 0.8, 2.6 * s, 0, 6.2832); ctx.fill();
+}
+
+function drawObj(o) {
+  if (o.t === 'ring') drawRing(o);
+  else if (o.t === 'cone') drawCone(o);
+  else if (o.t === 'gate') drawGate(o);
+  else if (o.t === 'wall') drawWall(o);
+  else if (o.t === 'badnik') drawBadnik(o);
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  Render — Amy Rose  (rear 3/4 chibi view)
+// ════════════════════════════════════════════════════════════════════
+const C = {
+  pink: '#f76ba0', pinkD: '#e24c87', pinkL: '#ffa0c4',
+  red: '#e62a3e', redD: '#b81f30', white: '#ffffff', trim: '#fff0f5',
+  skin: '#ffd2a6', skinD: '#f0bb8c', glove: '#fdfdff', cuff: '#ffc232',
+  boot: '#e62a3e', bootD: '#b81f30', sole: '#f4b878', eye: '#27ae46', band: '#e21f3a',
+};
+
+function drawAmy(cx, baseY, sc, t) {
+  const air = S.py > 6, sliding = S.slide > 0;
+  ctx.save();
+  ctx.translate(cx, baseY - S.py * sc);
+  ctx.scale(sc, sc);
+
+  if (sliding) { drawAmySlide(t); ctx.restore(); return; }
+
+  const bob = air ? 0 : Math.sin(t * 2) * 1.6;
+  const lean = air ? -6 : 0;
+  ctx.translate(0, -bob);
+  ctx.rotate(lean * Math.PI / 180);
+
+  // leg lift phases
+  let liftL, liftR;
+  if (air) { liftL = 17; liftR = 21; }
+  else { liftL = Math.max(0, Math.sin(t)) * 8; liftR = Math.max(0, Math.sin(t + Math.PI)) * 8; }
+
+  // ── legs + boots (behind dress) ──
+  drawLeg(-6.5, liftL);
+  drawLeg(6.5, liftR);
+
+  // ── back arm (further), drawn behind body ──
+  let swA, swB;
+  if (air) { swA = -7; swB = -7; } else { swA = Math.sin(t) * 6; swB = Math.sin(t + Math.PI) * 6; }
+  drawArm(13, swB, true);
+
+  // ── dress / body (rear) ──
+  ctx.fillStyle = C.red;
+  ctx.beginPath();
+  ctx.moveTo(-9, -46); ctx.lineTo(9, -46);                 // shoulders
+  ctx.lineTo(12, -30);                                     // waist out
+  ctx.quadraticCurveTo(18, -24, 17, -20);                  // hip flare R
+  ctx.lineTo(-17, -20);
+  ctx.quadraticCurveTo(-18, -24, -12, -30);                // hip flare L
+  ctx.closePath(); ctx.fill();
+  // shading down the back
+  ctx.fillStyle = C.redD; ctx.globalAlpha = 0.5;
+  ctx.beginPath(); ctx.moveTo(0, -46); ctx.lineTo(6, -46); ctx.lineTo(9, -22); ctx.lineTo(0, -22); ctx.closePath(); ctx.fill();
+  ctx.globalAlpha = 1;
+  // white scalloped hem
+  ctx.fillStyle = C.trim;
+  ctx.beginPath(); ctx.moveTo(-17, -20);
+  for (let i = 0; i <= 7; i++) { const x = -17 + i * (34 / 7); ctx.quadraticCurveTo(x + 34 / 14, -15, x + 34 / 7, -20); }
+  ctx.lineTo(17, -24); ctx.lineTo(-17, -24); ctx.closePath(); ctx.fill();
+
+  // ── front arm (nearer) ──
+  drawArm(-13, swA, false);
+
+  // ── head ──
+  drawHead(t, air);
+
+  ctx.restore();
+}
+
+function drawLeg(x, lift) {
+  const yF = -lift;                          // foot bottom
+  // leg (peach)
+  ctx.strokeStyle = C.skin; ctx.lineCap = 'round'; ctx.lineWidth = 7;
+  ctx.beginPath(); ctx.moveTo(x, -23); ctx.lineTo(x, yF - 13); ctx.stroke();
+  // boot — tall red go-go boot with white cuff + cream sole
+  ctx.save(); ctx.translate(x, yF);
+  ctx.fillStyle = C.sole; rRect(-7.5, -4, 16, 4, 2); ctx.fill();            // sole + slight toe
+  ctx.fillStyle = C.boot; rRect(-6.5, -17, 13, 14, 5); ctx.fill();          // red boot body
+  ctx.fillStyle = C.bootD; rRect(1, -16, 5.5, 13, 3); ctx.fill();           // shading
+  ctx.fillStyle = C.white; rRect(-7, -18.5, 14, 5.5, 2.7); ctx.fill();      // white folded cuff
+  ctx.restore();
+}
+
+function drawArm(x, sw, back) {
+  const sh = -44, hy = -32 + sw;
+  ctx.strokeStyle = back ? C.skinD : C.skin; ctx.lineCap = 'round'; ctx.lineWidth = 5.6;
+  ctx.beginPath(); ctx.moveTo(x * 0.74, sh); ctx.quadraticCurveTo(x * 1.05, sh + 8, x, hy); ctx.stroke();
+  // gold cuff
+  ctx.strokeStyle = C.cuff; ctx.lineWidth = 5.6;
+  ctx.beginPath(); ctx.moveTo(x * 0.99, hy - 3.2); ctx.lineTo(x, hy + 0.4); ctx.stroke();
+  // white glove
+  ctx.fillStyle = back ? '#e9e9ef' : C.glove;
+  ctx.beginPath(); ctx.arc(x, hy + 3, 4.4, 0, 6.2832); ctx.fill();
+}
+
+function drawHead(t, air) {
+  const hy = -56;
+  ctx.save(); ctx.translate(0, hy + (air ? -1 : Math.sin(t * 2 + 1) * 0.8));
+
+  // hair bob (rear) — big rounded pink mass with flicked quill tips
+  ctx.fillStyle = C.pink;
+  ctx.beginPath(); ctx.arc(0, 0, 16.5, 0, 6.2832); ctx.fill();
+  // quill flicks at the bottom of the bob
+  ctx.beginPath();
+  ctx.moveTo(-15, 6);  ctx.lineTo(-21, 17); ctx.lineTo(-10, 11);
+  ctx.moveTo(0, 11);   ctx.lineTo(-2, 24);  ctx.lineTo(7, 12);
+  ctx.moveTo(14, 6);   ctx.lineTo(20, 16);  ctx.lineTo(9, 11);
+  ctx.fill();
+  // subtle shading on hair
+  ctx.fillStyle = C.pinkD; ctx.globalAlpha = 0.35;
+  ctx.beginPath(); ctx.arc(4, 2, 13, -0.5, 1.8); ctx.fill(); ctx.globalAlpha = 1;
+  // ears
+  ctx.fillStyle = C.pink;
+  for (const sgn of [-1, 1]) { ctx.beginPath(); ctx.ellipse(sgn * 10, -14.5, 5, 6.5, sgn * 0.28, 0, 6.2832); ctx.fill(); }
+  ctx.fillStyle = C.skinD;
+  for (const sgn of [-1, 1]) { ctx.beginPath(); ctx.ellipse(sgn * 10, -13.5, 2.3, 3.4, sgn * 0.28, 0, 6.2832); ctx.fill(); }
+
+  // red headband across the crown
+  ctx.fillStyle = C.band;
+  ctx.beginPath(); ctx.ellipse(0, -8, 16.5, 8.5, 0, Math.PI * 1.06, Math.PI * 1.94); ctx.lineTo(13, -9);
+  ctx.ellipse(0, -8, 12.5, 5.5, 0, Math.PI * 1.9, Math.PI * 1.1, true); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = C.band; rRect(-16.5, -11, 33, 6.5, 3); ctx.fill();
+  // headband highlight
+  ctx.fillStyle = '#ff5e74'; rRect(-15, -10.4, 30, 2.2, 1.1); ctx.fill();
+
+  // turned face hint (left side) — muzzle + green eye + lash
+  ctx.fillStyle = C.skin;
+  ctx.beginPath(); ctx.ellipse(-12.5, 4, 6.2, 7.2, -0.25, 0, 6.2832); ctx.fill();
+  ctx.fillStyle = '#1b1b22';
+  ctx.beginPath(); ctx.arc(-15.4, 6.6, 1.5, 0, 6.2832); ctx.fill();      // nose tip
+  // green eye
+  ctx.fillStyle = C.white;
+  ctx.beginPath(); ctx.ellipse(-9.5, -1.5, 3.5, 5, -0.15, 0, 6.2832); ctx.fill();
+  ctx.fillStyle = C.eye;
+  ctx.beginPath(); ctx.ellipse(-9, -0.5, 2.5, 4, -0.15, 0, 6.2832); ctx.fill();
+  ctx.fillStyle = '#1b1b22';
+  ctx.beginPath(); ctx.ellipse(-9.4, 0, 1.4, 2.6, -0.15, 0, 6.2832); ctx.fill();
+  ctx.fillStyle = C.white;
+  ctx.beginPath(); ctx.arc(-10, -1.5, 1, 0, 6.2832); ctx.fill();
+  // eyelash
+  ctx.strokeStyle = '#1b1b22'; ctx.lineWidth = 1.3; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-12.4, -4.6); ctx.lineTo(-13.8, -5.6); ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawAmySlide(t) {
+  // low crouched slide, rear view, kicking up dust
+  ctx.save();
+  ctx.translate(0, -8);
+  // dust puffs behind
+  ctx.fillStyle = 'rgba(233,221,196,0.7)';
+  for (let i = 0; i < 3; i++) {
+    const px = 12 + i * 7 + Math.sin(t * 8 + i) * 2, py = -3 - i * 2;
+    ctx.beginPath(); ctx.arc(px, py, 4 + i, 0, 6.2832); ctx.fill();
+  }
+  // extended legs/boots forward (toward camera, lower)
+  ctx.fillStyle = C.boot;
+  rRect(-12, -10, 12, 9, 4); ctx.fill(); rRect(2, -10, 12, 9, 4); ctx.fill();
+  ctx.fillStyle = C.white; rRect(-12, -10, 12, 3, 1.5); ctx.fill(); rRect(2, -10, 12, 3, 1.5); ctx.fill();
+  ctx.fillStyle = C.sole; rRect(-12.5, -3, 13, 3, 1.5); ctx.fill(); rRect(1.5, -3, 13, 3, 1.5); ctx.fill();
+  // body low (red dress squashed)
+  ctx.fillStyle = C.red;
+  ctx.beginPath(); ctx.ellipse(2, -16, 17, 11, -0.15, 0, 6.2832); ctx.fill();
+  ctx.fillStyle = C.trim; rRect(-15, -10, 34, 4, 2); ctx.fill();
+  // head down low
+  ctx.save(); ctx.translate(8, -26);
+  ctx.fillStyle = C.pink; ctx.beginPath(); ctx.arc(0, 0, 13, 0, 6.2832); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-12, 3); ctx.lineTo(-19, 9); ctx.lineTo(-8, 8); ctx.fill();
+  ctx.fillStyle = C.band; rRect(-13, -9, 26, 5, 2.5); ctx.fill();
+  ctx.fillStyle = C.skin; ctx.beginPath(); ctx.ellipse(-10, 3, 5, 6, -0.3, 0, 6.2832); ctx.fill();
+  ctx.fillStyle = C.eye; ctx.beginPath(); ctx.ellipse(-7, -1, 2, 3, 0, 0, 6.2832); ctx.fill();
+  ctx.restore();
+  ctx.restore();
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  Render — composite frame
+// ════════════════════════════════════════════════════════════════════
+function drawSpeedLines() {
+  if (S.speed < 22) return;
+  const a = clamp((S.speed - 22) / 12, 0, 0.5);
+  ctx.strokeStyle = 'rgba(255,255,255,' + a + ')'; ctx.lineWidth = 2;
+  for (let i = 0; i < 6; i++) {
+    const side = i % 2 ? 1 : -1;
+    const x = W / 2 + side * (W * 0.42 + (i * 13) % 40);
+    const ph = ((S.dist * 30 + i * 50) % 120);
+    ctx.beginPath(); ctx.moveTo(x, ph); ctx.lineTo(x, ph + 26); ctx.stroke();
+  }
+}
+
+function render() {
+  if (Math.abs(cv.clientWidth - W) > 1 || Math.abs(cv.clientHeight - H) > 1) resize();   // self-heal stale size
+  computeGeo();
+  ctx.clearRect(0, 0, W, H);
+  ctx.save();
+  if (S.shake > 0) ctx.translate((Math.random() - 0.5) * S.shake, (Math.random() - 0.5) * S.shake);
+
+  drawSky();
+  drawRoad();
+
+  // objects far → near
+  objs.sort((a, b) => b.z - a.z);
+  for (const o of objs) if (o.z > -2 && o.z < Z_FAR + 8) drawObj(o);
+
+  // Amy (blink during invincibility)
+  const blink = S.inv > 0 && (Math.floor(S.inv * 14) & 1);
+  if (!blink) {
+    const ax = projX(S.visLane, 0), amyScale = H / 470;
+    drawAmy(ax, groundY, amyScale, S.runT);
+  }
+
+  // particles
+  for (const p of parts) {
+    ctx.globalAlpha = clamp(p.life, 0, 1);
+    if (p.kind === 'star') {
+      ctx.fillStyle = p.color; star(p.x, p.y, p.r + 1.5, (1 - p.life) * 6);
+    } else {
+      ctx.fillStyle = p.color;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r * clamp(p.life + 0.2, 0.2, 1), 0, 6.2832); ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  drawSpeedLines();
+  ctx.restore();
+
+  // damage flash
+  if (S.flash > 0) { ctx.fillStyle = 'rgba(255,60,60,' + (S.flash * 0.5) + ')'; ctx.fillRect(0, 0, W, H); }
+}
+
+function star(x, y, r, rot) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(rot);
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const ang = (i / 10) * 6.2832, rad = i % 2 ? r * 0.45 : r;
+    ctx.lineTo(Math.cos(ang) * rad, Math.sin(ang) * rad);
+  }
+  ctx.closePath(); ctx.fill(); ctx.restore();
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  HUD / overlays
+// ════════════════════════════════════════════════════════════════════
+function updateHUD() {
+  const n = S.lives;
+  livesEl.innerHTML = n <= 5
+    ? Array.from({ length: n }, () => '<span class="rr-heart">❤️</span>').join('')
+    : '<span class="rr-heart">❤️</span> ×' + n;
+  ringsEl.textContent = S.ringCount;
+  scoreEl.textContent = S.score;
+}
+let toastT = null;
+function showToast(txt) {
+  toastEl.textContent = txt; toastEl.classList.remove('show'); void toastEl.offsetWidth;
+  toastEl.classList.add('show');
+  if (toastT) clearTimeout(toastT);
+  toastT = setTimeout(() => toastEl.classList.remove('show'), 1100);
+}
+
+function showTitle() {
+  reset('title');
+  overlay.className = '';
+  overlay.innerHTML =
+    '<div class="rr-logo">★ AMY ROSE IN ★</div>' +
+    '<h1 class="rr-title">RING<br>RUSH</h1>' +
+    '<div class="rr-sub">A golden-ring endless runner</div>' +
+    '<div class="rr-keys">' +
+      '<div class="rr-key"><div class="ico">↔</div>SWITCH LANE<small>← →  /  swipe</small></div>' +
+      '<div class="rr-key"><div class="ico">↑</div>JUMP<small>↑ / tap</small></div>' +
+      '<div class="rr-key"><div class="ico">↓</div>SLIDE<small>↓ / swipe down</small></div>' +
+    '</div>' +
+    '<button class="rr-start" id="rr-start">TAP TO START</button>' +
+    (best > 0 ? '<div class="rr-best">BEST ' + best + '</div>' : '');
+  $('rr-start').addEventListener('click', e => { e.stopPropagation(); startGame(); });
+}
+
+function startGame() {
+  audioInit();
+  reset('play');
+  overlay.className = 'hidden';
+  updateHUD();
+}
+
+function gameOver() {
+  S.mode = 'over'; S.over = true; sfx.over();
+  const sc = S.score, isBest = sc > best;
+  if (isBest) { best = sc; try { localStorage.setItem('rr-best', sc); } catch (e) {} }
+  const shownBest = best;
+  overlay.className = '';
+  overlay.innerHTML =
+    '<div class="rr-over-title">GAME OVER</div>' +
+    '<div class="rr-stats">' +
+      '<div class="rr-stat"><div class="v">' + sc + '</div><div class="k">SCORE</div></div>' +
+      '<div class="rr-stat"><div class="v gold">' + S.ringsTotal + '</div><div class="k">RINGS</div></div>' +
+    '</div>' +
+    (isBest ? '<div class="rr-best rr-newbest">★ NEW BEST! ★</div>'
+            : '<div class="rr-best">BEST ' + shownBest + '</div>') +
+    '<button class="rr-start" id="rr-start" style="margin-top:18px">TAP TO RETRY</button>';
+  $('rr-start').addEventListener('click', e => { e.stopPropagation(); startGame(); });
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  Input
+// ════════════════════════════════════════════════════════════════════
+function primaryAction() {        // tap / space / enter
+  if (S.mode === 'play') jump();
+  else if (S.mode === 'title') startGame();
+  else if (S.mode === 'over') { if (S.overReady) startGame(); }
+}
+
+window.addEventListener('keydown', e => {
+  const k = e.key.toLowerCase();
+  if (['arrowleft', 'arrowright', 'arrowup', 'arrowdown', ' ', 'a', 'd', 'w', 's'].includes(k)) e.preventDefault();
+  audioInit();
+  if (k === 'arrowleft' || k === 'a') moveLane(-1);
+  else if (k === 'arrowright' || k === 'd') moveLane(1);
+  else if (k === 'arrowup' || k === 'w') { if (S.mode === 'play') jump(); else primaryAction(); }
+  else if (k === 'arrowdown' || k === 's') slide();
+  else if (k === ' ' || k === 'enter') primaryAction();
+}, { passive: false });
+
+// swipe / tap (pointer)
+let pd = null;
+game.addEventListener('pointerdown', e => {
+  audioInit();
+  pd = { x: e.clientX, y: e.clientY, t: performance.now(), acted: false };
+  try { game.setPointerCapture(e.pointerId); } catch (_) {}
+});
+game.addEventListener('pointermove', e => {
+  if (!pd || pd.acted) return;
+  const dx = e.clientX - pd.x, dy = e.clientY - pd.y;
+  const T = 26;
+  if (Math.abs(dx) > T && Math.abs(dx) > Math.abs(dy)) { moveLane(dx > 0 ? 1 : -1); pd.acted = true; }
+  else if (dy < -T && Math.abs(dy) > Math.abs(dx)) { jump(); pd.acted = true; }
+  else if (dy > T && Math.abs(dy) > Math.abs(dx)) { slide(); pd.acted = true; }
+});
+game.addEventListener('pointerup', e => {
+  if (!pd) return;
+  if (!pd.acted) {
+    const dx = e.clientX - pd.x, dy = e.clientY - pd.y;
+    if (Math.abs(dx) < 14 && Math.abs(dy) < 14) primaryAction();   // tap
+  }
+  pd = null;
+});
+game.addEventListener('pointercancel', () => { pd = null; });
+
+// ════════════════════════════════════════════════════════════════════
+//  Main loop
+// ════════════════════════════════════════════════════════════════════
+function loop(ts) {
+  const dt = Math.min(0.05, (ts - lastTs) / 1000 || 0);
+  lastTs = ts;
+  if (S.mode !== 'over') update(dt);
+  else if (!S.overReady && (S.shake <= 0)) { S.overReady = true; }   // allow restart after settle
+  render();
+  if (S.mode === 'play') updateHUD();
+  requestAnimationFrame(loop);
+}
+
+// ── boot ──
+reset('title');
+showTitle();
+requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>
